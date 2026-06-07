@@ -99,42 +99,59 @@ java -jar E:\geek\alarm-assistant\target\alarm-assistant-0.0.1-SNAPSHOT.jar
 
 ---
 
-### v1.3 — 解析失败短路机制 (2026-06-07)
+### v1.3 — 解析失败短路机制 (2026-06-07) ⚠️ 已在 v1.5 重构
 
-**问题**：输入无意义告警文本（如"这只是随便写写的异常"）时，LLM 仍编造分析结果，5 个工具全部查询无效数据，输出胡言乱语。
+> **注意**：v1.5 将此机制重构为抛异常模式。以下为历史记录。
 
-**修复**：
+**问题**：输入无意义告警文本（如"这只是随便写写的异常"）时，LLM 仍编造分析结果。
+
+**原修复**：
 
 | 文件 | 改动 |
 |------|------|
-| `model/ParsedAlarm.java` | 新增 `parsed` 字段 + `ParsedAlarm.failed()` 工厂方法 |
-| `model/AlarmReport.java` | 新增 `analysisStatus` 字段（`SUCCESS` / `PARSE_FAILED`） |
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `hasAlarmSignal()` 预过滤 — 输入不含服务名/异常指标关键词直接拒绝，不调 LLM |
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `isValidService()` 白名单校验 — 只接受 4 个已知服务名 |
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `buildParseFailedResult()` — 短路返回结构化"无法解析"报告 |
-| `pipeline/AlarmAnalysisPipeline.java` | `analyze()` Step 1 后加短路判断：`!parsedAlarm.isParsed()` → 跳过工具调用阶段 |
-| `controller/AlarmController.java` | `buildReportMap()` 增加 `analysisStatus` 字段 |
-| `static/index.html` | 新增 `PARSE_FAILED` 状态 UI — 展示 ⚠️ 警告卡片 + 建议 |
-
-**效果**：无效输入 6ms 返回（不调 LLM、不调工具），`analysisStatus: PARSE_FAILED`。
+| `model/ParsedAlarm.java` | 新增 `parsed` 字段 + `ParsedAlarm.failed()` |
+| `model/AlarmReport.java` | 新增 `analysisStatus` 字段 |
+| `pipeline/AlarmAnalysisPipeline.java` | 新增 `hasAlarmSignal()` 预过滤、`isValidService()`、`buildParseFailedResult()` |
+| `static/index.html` | 新增 `PARSE_FAILED` 状态 UI |
 
 ---
 
 ### v1.4 — 风险等级定级修复 (2026-06-07)
 
-**问题**：前端 UI 显示 `⚠ 应该是什么？ · 未知`、`⚠ 应该是什么？（P0/P1/P2/P3）** · 未知`。LLM 的 RCA 自然语言响应被 `extractFromRca` 当成风险等级原样提取，导致字段显示乱码。
+**问题**：前端 UI 显示 `⚠ 应该是什么？ · 未知`。LLM 的 RCA 自然语言响应被 `extractFromRca` 当成风险等级原样提取，导致字段显示乱码。
 
 **修复**：
 
 | 文件 | 改动 |
 |------|------|
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `parseRiskLevel()` — 在 LLM 响应中扫描 `P0`-`P3` 关键字提取风险等级，不再用正则截取 |
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `parseRootCause()` — 按"根因"关键词分割行提取，过滤 LLM 开场白废话 |
+| `pipeline/AlarmAnalysisPipeline.java` | 新增 `parseRiskLevel()` — 扫描 `P0`-`P3` 关键字提取风险等级 |
+| `pipeline/AlarmAnalysisPipeline.java` | 新增 `parseRootCause()` — 按"根因"关键词分割行提取，过滤 LLM 开场白 |
 | `pipeline/AlarmAnalysisPipeline.java` | 新增 `parseImpactDesc()` — 提取用户影响描述 |
-| `pipeline/AlarmAnalysisPipeline.java` | 新增 `isValidRiskLevel()` — 校验风险等级是否合法 |
+| `pipeline/AlarmAnalysisPipeline.java` | 新增 `isValidRiskLevel()` — 校验风险等级合法性 |
 | `pipeline/AlarmAnalysisPipeline.java` | `parseJsonResult()` 中加风险等级校验，LLM 返回非法值默认 `P2` |
-| `pipeline/AlarmAnalysisPipeline.java` | `generateReport()` 改用 `parseRiskLevel()` / `parseRootCause()` / `parseImpactDesc()` |
+| `pipeline/AlarmAnalysisPipeline.java` | `generateReport()` 改用专用 `parse*` 方法 |
 
 **效果**：`riskLevel: P1, severity: 严重`，不再出现乱码。
 
 ---
+
+### v1.5 — LLM 异常抛异常机制 (2026-06-07)
+
+**问题**：v1.3 的短路机制（静默返回 `PARSE_FAILED`）语义不明确——LLM 返回无效数据应该显式抛业务异常，而非静默处理。
+
+**重构**：
+
+| 文件 | 改动 |
+|------|------|
+| `pipeline/AlarmAnalysisPipeline.java` | `parseAlarm()` LLM 返回无效数据时 `throw AlarmParseException`（服务名不在白名单 / 置信度 < 0.3） |
+| `pipeline/AlarmAnalysisPipeline.java` | `heuristicParse()` 无法识别服务名时 `throw AlarmParseException` |
+| `pipeline/AlarmAnalysisPipeline.java` | 移除 `hasAlarmSignal()` 预过滤、`buildParseFailedResult()`、`isValidService()` 死代码 |
+| `pipeline/AlarmAnalysisPipeline.java` | 移除 `analyze()` 中的 `isParsed` 短路判断 |
+| `model/ParsedAlarm.java` | 移除 `isParsed` / `parsed` / `failed()` |
+| `exception/GlobalExceptionHandler.java` | 统一错误消息为 `e.getMessage()`（不再加"告警文本解析失败"前缀） |
+| `static/index.html` | 移除 `PARSE_FAILED` 渲染分支，前端通过 catch 展示 400 错误 |
+
+**效果**：
+- LLM 返回无效数据 → HTTP 400 + `"大模型解析异常，请联系管理员"`
+- 不再暴露内部技术细节（如 `svc=`、`invalid LLM output`）
+- 所有异常路径统一走 `AlarmParseException` → `GlobalExceptionHandler`

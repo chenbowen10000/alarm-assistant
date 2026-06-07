@@ -1,5 +1,6 @@
 package com.example.alarm.pipeline;
 
+import com.example.alarm.exception.AlarmParseException;
 import com.example.alarm.mock.OpsMockDataStore;
 import com.example.alarm.model.AlarmReport;
 import com.example.alarm.model.ParsedAlarm;
@@ -88,9 +89,6 @@ public class AlarmAnalysisPipeline {
         log.info("[STEP-1-PARSE] id={}, service={}, type={}, latency={}ms",
                 analysisId, parsedAlarm.getServiceName(), parsedAlarm.getAlarmType(), latencies.get("parse"));
 
-        if (!parsedAlarm.isParsed()) {
-            return buildParseFailedResult(analysisId, alarmText, parsedAlarm, latencies, totalStart);
-        }
 
         // ======== Step 2: Invoke Tools ========
         stepStart = System.currentTimeMillis();
@@ -137,15 +135,18 @@ public class AlarmAnalysisPipeline {
                 "告警类型: 接口超时, 错误率上升, CPU异常, 内存异常, 数据库异常, 发布后异常, 下游服务异常, 综合告警\n" +
                 "riskLevel: P0(核心功能不可用), P1(大面积异常), P2(部分异常), P3(轻微异常)";
 
-        if (!hasAlarmSignal(alarmText)) {
-            log.warn("[STEP-1-PARSE] id={}, no alarm signal detected in text", analysisId);
-            return ParsedAlarm.failed();
-        }
-        ModelResult result = modelFallback.callWithFallback(systemPrompt, alarmText);
+ModelResult result = modelFallback.callWithFallback(systemPrompt, alarmText);
         log.info("[STEP-1-PARSE] id={}, model={}", analysisId, result.getModelUsed());
 
         try {
-            return parseJsonResult(result.getContent());
+            ParsedAlarm parsed = parseJsonResult(result.getContent());
+            log.info("[PARSE-DEBUG] svc='{}' conf={}", parsed.getServiceName(), parsed.getConfidence());
+            if (!dataStore.serviceExists(parsed.getServiceName().trim()) || parsed.getConfidence() < 0.3 ) {
+                throw new AlarmParseException(alarmText, "大模型解析异常，请联系管理员");
+            }
+            return parsed;
+        } catch (AlarmParseException e) {
+            throw e;
         } catch (Exception e) {
             log.warn("[STEP-1-PARSE] id={}, parse failed, trying heuristic", analysisId);
             return heuristicParse(alarmText);
@@ -184,7 +185,7 @@ public class AlarmAnalysisPipeline {
         else if (lower.contains("pay") || lower.contains("支付")) alarm.setServiceName("payment-service");
         else if (lower.contains("inventory") || lower.contains("库存")) alarm.setServiceName("inventory-service");
         else if (lower.contains("user") || lower.contains("用户")) alarm.setServiceName("user-service");
-        else { alarm.setServiceName("unknown"); alarm.setParsed(false); }
+        else { throw new AlarmParseException(alarmText, "大模型解析异常，请联系管理员"); }
 
         if (lower.contains("超时") || lower.contains("timeout")) alarm.setAlarmType("接口超时");
         else if (lower.contains("错误率") || lower.contains("error rate")) alarm.setAlarmType("错误率上升");

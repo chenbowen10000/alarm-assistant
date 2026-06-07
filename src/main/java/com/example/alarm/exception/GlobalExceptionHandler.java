@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now().toString());
         body.put("status", 400);
         body.put("error", "Bad Request");
-        body.put("message", "告警文本解析失败: " + e.getMessage());
+        body.put("message", e.getMessage());
         body.put("alarmText", e.getAlarmText());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
