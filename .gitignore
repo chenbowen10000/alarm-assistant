@@ -1,0 +1,42 @@
+﻿# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Java
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.log
+*.tmp
+
+# Spring Boot
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Env
+.env
+.env.local
+*.env
+
+# Local config with keys
+application-local.yml

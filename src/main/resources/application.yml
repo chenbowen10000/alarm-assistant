@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    active: local
+
+alarm:
+  models:
+    primary:
+      provider: deepseek
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: https://api.deepseek.com
+      model: deepseek-chat
+      temperature: 0.3
+      max-tokens: 2000
+      timeout: 30s
+    fallback:
+      provider: qwen
+      api-key: ${QWEN_API_KEY:}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      model: qwen-turbo
+      temperature: 0.3
+      max-tokens: 2000
+      timeout: 30s
+
+logging:
+  level:
+    com.example.alarm: DEBUG

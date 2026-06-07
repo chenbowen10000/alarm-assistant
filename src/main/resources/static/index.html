@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ ALARM OPS — 企业运维告警智能处置</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep: #0d1117;
+  --bg-panel: #161b22;
+  --bg-card: #1c2333;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --neon-green: #00ff88;
+  --neon-amber: #ff9900;
+  --neon-red: #ff0066;
+  --neon-blue: #58a6ff;
+  --neon-purple: #bc8cff;
+  --font-display: "DM Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
+  --scanline-opacity: 0.03;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* scanline overlay */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,255,136,0.015) 2px,
+    rgba(0,255,136,0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--neon-green); }
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  font-size: 24px;
+  animation: pulse-icon 2s ease-in-out infinite;
+}
+
+@keyframes pulse-icon {
+  0%, 100% { text-shadow: 0 0 8px var(--neon-green); }
+  50% { text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--neon-green); }
+}
+
+.logo-text {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--neon-green);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.model-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.status-dot.online {
+  background: var(--neon-green);
+  box-shadow: 0 0 8px var(--neon-green);
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.status-dot.standby {
+  background: var(--neon-amber);
+  box-shadow: 0 0 4px var(--neon-amber);
+}
+
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 8px var(--neon-green); }
+  50% { box-shadow: 0 0 16px var(--neon-green), 0 0 24px var(--neon-green); }
+}
+
+.model-label { color: var(--text-muted); }
+
+.model-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Main layout */
+.main-container {
+  display: flex;
+  height: calc(100vh - 57px);
+  gap: 0;
+}
+
+/* Left panel - Input */
+.left-panel {
+  width: 40%;
+  min-width: 380px;
+  padding: 24px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neon-green);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title::before {
+  content: ">";
+  color: var(--neon-green);
+}
+
+.alarm-textarea {
+  width: 100%;
+  height: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 16px;
+  resize: vertical;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  caret-color: var(--neon-green);
+}
+
+.alarm-textarea:focus {
+  outline: none;
+  border-color: var(--neon-green);
+  box-shadow: 0 0 0 3px rgba(0,255,136,0.1), 0 0 20px rgba(0,255,136,0.05);
+}
+
+.alarm-textarea::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.analyze-btn {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: 1px solid var(--neon-green);
+  border-radius: 6px;
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.analyze-btn:hover {
+  background: rgba(0,255,136,0.08);
+  box-shadow: 0 0 24px rgba(0,255,136,0.2);
+}
+
+.analyze-btn:active {
+  transform: scale(0.98);
+}
+
+.analyze-btn.loading {
+  border-color: var(--neon-amber);
+  color: var(--neon-amber);
+  pointer-events: none;
+}
+
+.analyze-btn.loading:hover {
+  background: transparent;
+  box-shadow: none;
+}
+
+.analyze-btn .btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid transparent;
+  border-top-color: var(--neon-amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.analyze-btn.loading .spinner { display: block; }
+.analyze-btn.loading .btn-text { color: var(--neon-amber); }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.quick-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.examples-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.example-chip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.example-chip:hover {
+  border-color: var(--neon-blue);
+  color: var(--neon-blue);
+  background: rgba(88,166,255,0.05);
+}
+
+/* Right panel - Results */
+.right-panel {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--bg-deep);
+}
+
+.placeholder-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 16px;
+}
+
+.placeholder-icon {
+  font-size: 64px;
+  opacity: 0.3;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.placeholder-text {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.placeholder-sub {
+  font-family: var(--font-display);
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* Report card */
+.report-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  animation: slideIn 0.5s ease-out;
+  display: none;
+}
+
+.report-card.visible {
+  display: block;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.risk-badge.P0 { background: rgba(255,0,102,0.15); color: var(--neon-red); border: 1px solid rgba(255,0,102,0.3); }
+.risk-badge.P1 { background: rgba(255,153,0,0.15); color: var(--neon-amber); border: 1px solid rgba(255,153,0,0.3); }
+.risk-badge.P2 { background: rgba(88,166,255,0.15); color: var(--neon-blue); border: 1px solid rgba(88,166,255,0.3); }
+.risk-badge.P3 { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
+
+.report-section {
+  margin-bottom: 20px;
+}
+
+.report-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 6px;
+}
+
+.report-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.report-value.key {
+  color: var(--neon-green);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.report-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.action-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.action-list li {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  background: rgba(0,255,136,0.04);
+  border-left: 2px solid var(--neon-green);
+  border-radius: 0 4px 4px 0;
+}
+
+.evidence-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.evidence-list li {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.evidence-ok { color: var(--neon-green) !important; }
+.evidence-fail { color: var(--neon-red) !important; }
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.metric-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.metric-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--neon-green);
+  margin-top: 4px;
+}
+
+.metric-value.warn { color: var(--neon-amber); }
+.metric-value.danger { color: var(--neon-red); }
+
+.footer-bar {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 12px 0 0 0;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Loading pulse animation */
+.loading-pulse {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 400px;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.loading-pulse.active {
+  display: flex;
+}
+
+.pulse-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid var(--neon-amber);
+  animation: pulse-ring 1.5s ease-out infinite;
+  position: relative;
+}
+
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  top: -4px; left: -4px; right: -4px; bottom: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,153,0,0.4);
+  animation: pulse-ring-outer 1.5s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  50% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(0.8); opacity: 1; }
+}
+
+@keyframes pulse-ring-outer {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.pulse-text {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--neon-amber);
+  letter-spacing: 2px;
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .main-container { flex-direction: column; }
+  .left-panel { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); }
+  .right-panel { min-height: 400px; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <span class="logo-icon">⚡</span>
+    <span class="logo-text">ALARM OPS</span>
+  </div>
+  <div class="status-bar">
+    <div class="model-status">
+      <span class="status-dot online" id="primaryDot"></span>
+      <span class="model-label">主模型</span>
+      <span class="model-name" id="primaryLabel">DeepSeek · ONLINE</span>
+    </div>
+    <div class="model-status">
+      <span class="status-dot standby" id="fallbackDot"></span>
+      <span class="model-label">备用</span>
+      <span class="model-name" id="fallbackLabel">Qwen · STANDBY</span>
+    </div>
+  </div>
+</header>
+
+<div class="main-container">
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+    <div class="panel-title">告警输入</div>
+    <textarea class="alarm-textarea" id="alarmInput" placeholder="> 请输入运维告警文本..."></textarea>
+    <button class="analyze-btn" id="analyzeBtn" onclick="analyzeAlarm()">
+      <span class="btn-content">
+        <span class="spinner"></span>
+        <span class="btn-text">⚡ 开始分析</span>
+      </span>
+    </button>
+
+    <div class="quick-examples">
+      <div class="examples-label">快捷示例</div>
+      <button class="example-chip" onclick="setExample(0)">订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本</button>
+      <button class="example-chip" onclick="setExample(1)">支付服务错误率突然上升到8%，数据库连接池耗尽，大量用户支付失败</button>
+      <button class="example-chip" onclick="setExample(2)">库存服务CPU使用率持续100%，内存使用率90%，接口响应超时，库存查询不可用</button>
+      <button class="example-chip" onclick="setExample(3)">用户服务数据库连接异常大量Connection refused，认证服务超时，影响登录</button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel" id="rightPanel">
+    <div class="placeholder-state" id="placeholder">
+      <div class="placeholder-icon">📡</div>
+      <div class="placeholder-text">等待告警输入...</div>
+      <div class="placeholder-sub">输入告警文本并点击分析，查看结构化处置报告</div>
+    </div>
+    <div class="loading-pulse" id="loadingPulse">
+      <div class="pulse-ring"></div>
+      <div class="pulse-text">分析中 · 调用工具 · 推理根因</div>
+    </div>
+    <div class="report-card" id="reportCard"></div>
+  </div>
+
+</div>
+
+<script>
+const examples = [
+  "订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本",
+  "支付服务错误率突然上升到8%，数据库连接池耗尽，大量用户支付失败",
+  "库存服务CPU使用率持续100%，内存使用率90%，接口响应超时，库存查询不可用",
+  "用户服务数据库连接异常大量Connection refused，认证服务超时，影响登录"
+];
+
+function setExample(i) {
+  document.getElementById('alarmInput').value = examples[i];
+}
+
+async function analyzeAlarm() {
+  const input = document.getElementById('alarmInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.classList.add('loading');
+
+  const placeholder = document.getElementById('placeholder');
+  const loadingPulse = document.getElementById('loadingPulse');
+  const reportCard = document.getElementById('reportCard');
+
+  placeholder.style.display = 'none';
+  loadingPulse.classList.add('active');
+  reportCard.classList.remove('visible');
+
+  try {
+    const res = await fetch('/api/alarm/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alarmText: text })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || '分析请求失败');
+    }
+
+    const data = await res.json();
+    renderReport(data);
+    updateStatusBar(data);
+  } catch (e) {
+    reportCard.innerHTML = '<div style="padding:24px;color:var(--neon-red);font-family:var(--font-mono)">⚠ ' + e.message + '</div>';
+    reportCard.classList.add('visible');
+  } finally {
+    btn.classList.remove('loading');
+    loadingPulse.classList.remove('active');
+  }
+}
+
+function updateStatusBar(data) {
+  const model = data.modelUsed || '';
+  const fb = data.fallbackActivated;
+  const primaryDot = document.getElementById('primaryDot');
+  const fallbackDot = document.getElementById('fallbackDot');
+  const primaryLabel = document.getElementById('primaryLabel');
+  const fallbackLabel = document.getElementById('fallbackLabel');
+  const totalMs = data.pipelineLatency ? data.pipelineLatency.total : 0;
+  const totalS = (totalMs / 1000).toFixed(1);
+
+  if (fb) {
+    primaryDot.className = 'status-dot';
+    primaryDot.style.background = 'var(--neon-red)';
+    primaryDot.style.boxShadow = '0 0 4px var(--neon-red)';
+    primaryLabel.textContent = 'DeepSeek · FAILED';
+    fallbackDot.className = 'status-dot online';
+    fallbackLabel.textContent = 'Qwen · ACTIVE (' + totalS + 's)';
+  } else {
+    primaryDot.className = 'status-dot online';
+    primaryLabel.textContent = 'DeepSeek · ONLINE (' + totalS + 's)';
+    fallbackDot.className = 'status-dot standby';
+    fallbackLabel.textContent = 'Qwen · STANDBY';
+  }
+}
+
+function renderReport(data) {
+  const r = data.report;
+  const card = document.getElementById('reportCard');
+  const lat = data.pipelineLatency || {};
+  const totalS = ((lat.total || 0) / 1000).toFixed(1);
+
+  let metricsHtml = '';
+  if (r.keyMetrics && Object.keys(r.keyMetrics).length > 0) {
+    metricsHtml = '<div class="metrics-grid">';
+    for (const [k, v] of Object.entries(r.keyMetrics)) {
+      let cls = '';
+      const vStr = String(v).toLowerCase();
+      if (vStr.includes('100') || vStr.includes('15') || vStr.includes('耗尽') || vStr.includes('error')) cls = ' danger';
+      else if (vStr.includes('90') || vStr.includes('8') || vStr.includes('slow') || vStr.includes('5s')) cls = ' warn';
+      metricsHtml += '<div class="metric-item"><div class="metric-label">' + k + '</div><div class="metric-value' + cls + '">' + v + '</div></div>';
+    }
+    metricsHtml += '</div>';
+  }
+
+  let actionsHtml = '';
+  if (r.recommendedActions && r.recommendedActions.length > 0) {
+    actionsHtml = '<ul class="action-list">';
+    r.recommendedActions.forEach(a => { actionsHtml += '<li>' + a + '</li>'; });
+    actionsHtml += '</ul>';
+  }
+
+  let evidenceHtml = '';
+  if (r.evidence && r.evidence.length > 0) {
+    evidenceHtml = '<ul class="evidence-list">';
+    r.evidence.forEach(e => {
+      const cls = e.includes('✓') ? 'evidence-ok' : (e.includes('✗') ? 'evidence-fail' : '');
+      evidenceHtml += '<li class="' + cls + '">' + e + '</li>';
+    });
+    evidenceHtml += '</ul>';
+  }
+
+  let followHtml = '';
+  if (r.followUpMetrics && r.followUpMetrics.length > 0) {
+    followHtml = r.followUpMetrics.map(f => '<span style="margin-right:12px;color:var(--text-muted);font-size:12px">● ' + f + '</span>').join('');
+  }
+
+  card.innerHTML = [
+    '<span class="risk-badge ' + (r.riskLevel||'P2') + '">⚠ ' + (r.riskLevel||'?') + ' · ' + (r.severity||'?') + '</span>',
+    '<div class="report-section"><div class="report-label">服务名称</div><div class="report-value key">' + (r.serviceName||'?') + '</div></div>',
+    '<div class="report-section"><div class="report-label">告警类型</div><div class="report-value">' + (r.alarmType||'?') + '</div></div>',
+    metricsHtml ? '<div class="report-section"><div class="report-label">异常指标</div>' + metricsHtml + '</div>' : '',
+    '<hr class="report-divider">',
+    '<div class="report-section"><div class="report-label">用户影响</div><div class="report-value ' + (r.userImpact?'':'') + '">' + (r.userImpact ? '⚠ 是 — ' + (r.impactDescription||'有影响') : '否') + '</div></div>',
+    '<div class="report-section"><div class="report-label">可能根因</div><div class="report-value">' + (r.possibleRootCause||'待确认') + '</div></div>',
+    '<div class="report-section"><div class="report-label">置信度</div><div class="report-value">' + ((r.confidence||0)*100).toFixed(0) + '%</div></div>',
+    '<hr class="report-divider">',
+    actionsHtml ? '<div class="report-section"><div class="report-label">推荐处置动作</div>' + actionsHtml + '</div>' : '',
+    '<div class="report-section"><div class="report-label">是否回滚</div><div class="report-value ' + (r.shouldRollback?'':'') + '">' + (r.shouldRollback ? '⚠ 建议回滚' : '暂不需要') + '</div></div>',
+    '<div class="report-section"><div class="report-label">是否人工升级</div><div class="report-value ' + (r.needsEscalation?'':'') + '">' + (r.needsEscalation ? '⚠ 需要人工升级处理' : '暂不需要') + '</div></div>',
+    '<hr class="report-divider">',
+    evidenceHtml ? '<div class="report-section"><div class="report-label">工具调用证据</div>' + evidenceHtml + '</div>' : '',
+    '<hr class="report-divider">',
+    followHtml ? '<div class="report-section"><div class="report-label">后续观察指标</div><div class="report-value">' + followHtml + '</div></div>' : '',
+    '<div class="report-section"><div class="report-label">下次检查</div><div class="report-value">' + (r.nextCheckTime||'持续监控') + '</div></div>',
+    '<div class="footer-bar"><span>模型: ' + (data.modelUsed||'?') + (data.fallbackActivated?' (备用)':'') + '</span><span>总耗时: ' + totalS + 's</span></div>'
+  ].join('\n');
+
+  card.classList.add('visible');
+
+  // stagger reveal sections
+  const sections = card.querySelectorAll('.report-section');
+  sections.forEach((s, i) => {
+    s.style.opacity = '0';
+    s.style.transform = 'translateY(10px)';
+    s.style.transition = 'all 0.3s ease';
+    s.style.transitionDelay = (0.05 * i) + 's';
+    setTimeout(() => {
+      s.style.opacity = '1';
+      s.style.transform = 'translateY(0)';
+    }, 50);
+  });
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Auto-focus textarea
+document.getElementById('alarmInput').focus();
+
+// Enter key to submit (Ctrl+Enter)
+document.getElementById('alarmInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && e.ctrlKey) {
+    analyzeAlarm();
+  }
+});
+</script>
+</body>
+</html>
