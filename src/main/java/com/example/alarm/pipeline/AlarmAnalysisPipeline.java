@@ -88,6 +88,10 @@ public class AlarmAnalysisPipeline {
         log.info("[STEP-1-PARSE] id={}, service={}, type={}, latency={}ms",
                 analysisId, parsedAlarm.getServiceName(), parsedAlarm.getAlarmType(), latencies.get("parse"));
 
+        if (!parsedAlarm.isParsed()) {
+            return buildParseFailedResult(analysisId, alarmText, parsedAlarm, latencies, totalStart);
+        }
+
         // ======== Step 2: Invoke Tools ========
         stepStart = System.currentTimeMillis();
         List<ToolResult> toolResults = invokeTools(parsedAlarm, analysisId);
@@ -133,6 +137,10 @@ public class AlarmAnalysisPipeline {
                 "告警类型: 接口超时, 错误率上升, CPU异常, 内存异常, 数据库异常, 发布后异常, 下游服务异常, 综合告警\n" +
                 "riskLevel: P0(核心功能不可用), P1(大面积异常), P2(部分异常), P3(轻微异常)";
 
+        if (!hasAlarmSignal(alarmText)) {
+            log.warn("[STEP-1-PARSE] id={}, no alarm signal detected in text", analysisId);
+            return ParsedAlarm.failed();
+        }
         ModelResult result = modelFallback.callWithFallback(systemPrompt, alarmText);
         log.info("[STEP-1-PARSE] id={}, model={}", analysisId, result.getModelUsed());
 
@@ -151,7 +159,8 @@ public class AlarmAnalysisPipeline {
         ParsedAlarm alarm = new ParsedAlarm();
         alarm.setServiceName(getString(map, "serviceName"));
         alarm.setAlarmType(getString(map, "alarmType"));
-        alarm.setRiskLevel(getString(map, "riskLevel"));
+        String rl = getString(map, "riskLevel");
+        alarm.setRiskLevel(isValidRiskLevel(rl) ? rl : "P2");
         alarm.setUserImpact(getBoolean(map, "userImpact"));
         alarm.setNeedsEscalation(getBoolean(map, "needsEscalation"));
         alarm.setConfidence(getDouble(map, "confidence"));
@@ -175,7 +184,7 @@ public class AlarmAnalysisPipeline {
         else if (lower.contains("pay") || lower.contains("支付")) alarm.setServiceName("payment-service");
         else if (lower.contains("inventory") || lower.contains("库存")) alarm.setServiceName("inventory-service");
         else if (lower.contains("user") || lower.contains("用户")) alarm.setServiceName("user-service");
-        else alarm.setServiceName("unknown");
+        else { alarm.setServiceName("unknown"); alarm.setParsed(false); }
 
         if (lower.contains("超时") || lower.contains("timeout")) alarm.setAlarmType("接口超时");
         else if (lower.contains("错误率") || lower.contains("error rate")) alarm.setAlarmType("错误率上升");
@@ -272,17 +281,19 @@ public class AlarmAnalysisPipeline {
         String rcaText = rcaResult.getContent();
 
         AlarmReport report = new AlarmReport();
+        report.setAnalysisStatus("SUCCESS");
         report.setServiceName(parsedAlarm.getServiceName());
         report.setAlarmType(parsedAlarm.getAlarmType());
 
         // Extract risk level from RCA result
-        String riskLevel = extractFromRca(rcaText, "风险等级", parsedAlarm.getRiskLevel());
+        String riskLevel = parseRiskLevel(rcaText, parsedAlarm.getRiskLevel());
         report.setRiskLevel(riskLevel);
         report.setSeverity(mapSeverity(riskLevel));
         report.setKeyMetrics(parsedAlarm.getKeyMetrics());
         report.setUserImpact(parsedAlarm.isUserImpact());
-        report.setImpactDescription(extractFromRca(rcaText, "用户影响", "待确认"));
-        report.setPossibleRootCause(extractFromRca(rcaText, "根因", rcaText.length() > 200 ? rcaText.substring(0, 200) : rcaText));
+        String rawImpact = extractFromRca(rcaText, "用户影响", null);
+        report.setImpactDescription(rawImpact != null && rawImpact.length() < 200 ? rawImpact : "待确认");
+        report.setPossibleRootCause(parseRootCause(rcaText, parsedAlarm));
         report.setConfidence(parsedAlarm.getConfidence() > 0 ? parsedAlarm.getConfidence() : 0.7);
 
         // Evidence from tools
@@ -314,6 +325,109 @@ public class AlarmAnalysisPipeline {
         report.setNextCheckTime("持续监控，建议每5分钟检查一次");
 
         return report;
+    }
+
+    // ======== Parse-failed shortcut ========
+    private PipelineResult buildParseFailedResult(String analysisId, String alarmText,
+                                                     ParsedAlarm parsedAlarm,
+                                                     Map<String, Long> latencies, long totalStart) {
+        long totalLatency = System.currentTimeMillis() - totalStart;
+        latencies.put("total", totalLatency);
+
+        AlarmReport report = new AlarmReport();
+        report.setAnalysisStatus("PARSE_FAILED");
+        report.setServiceName("unknown");
+        report.setAlarmType("未识别");
+        report.setRiskLevel("N/A");
+        report.setSeverity("N/A");
+        report.setConfidence(0.0);
+        report.setUserImpact(false);
+        report.setImpactDescription("告警文本中未检测到可识别的服务名称或异常指标，无法进行自动化分析。请确认告警内容是否包含有效的服务名称（如 order-service、payment-service）和异常描述。");
+        report.setPossibleRootCause("无法确定根因 —— 告警文本无法解析为有效的结构化信息");
+        List<String> evidence = new ArrayList<>();
+        evidence.add("告警解析失败：未识别到有效服务名或异常指标");
+        report.setEvidence(evidence);
+        report.setRecommendedActions(Arrays.asList(
+                "请检查告警文本是否包含有效的服务名称",
+                "请确认告警文本是否包含可量化的异常指标",
+                "建议携带具体指标（如超时率、错误率、CPU使用率等）后重试"
+        ));
+        report.setShouldRollback(false);
+        report.setNeedsEscalation(false);
+        report.setFollowUpMetrics(Collections.emptyList());
+        report.setNextCheckTime("N/A");
+
+        log.info("[ANALYSIS-COMPLETE] id={}, status=PARSE_FAILED, totalLatency={}ms",
+                analysisId, totalLatency);
+
+        return new PipelineResult(analysisId, report, "rule-engine", true, latencies,
+                Collections.emptyList());
+    }
+
+    private boolean isValidService(String serviceName) {
+        if (serviceName == null || serviceName.isBlank()) return false;
+        return dataStore.serviceExists(serviceName);
+    }
+
+    private boolean hasAlarmSignal(String text) {
+        if (text == null || text.isBlank()) return false;
+        String lower = text.toLowerCase();
+        String[] services = {"order", "payment", "inventory", "user"};
+        String[] cnServices = {"订单", "支付", "库存", "用户"};
+        for (String s : services) if (lower.contains(s)) return true;
+        for (String s : cnServices) if (text.contains(s)) return true;
+        String[] indicators = {"timeout", "超时", "error", "错误", "cpu", "内存", "memory", "database", "数据库", "连接", "connection", "拒绝", "refused", "时间", "延迟", "发布", "deploy", "版本", "v2.", "v3.", "v1.", "down", "挂了", "宕机", "不可用"};
+        for (String s : indicators) if (lower.contains(s) || text.contains(s)) return true;
+        return text.length() >= 60;
+    }
+
+    private boolean isValidRiskLevel(String level) {
+        if (level == null) return false;
+        return level.equals("P0") || level.equals("P1") || level.equals("P2") || level.equals("P3");
+    }
+
+    private String parseRiskLevel(String rcaText, String fallback) {
+        if (rcaText == null) return fallback;
+        for (String line : rcaText.split("\n")) {
+            if (line.contains("风险等级")) {
+                if (line.contains("P0")) return "P0";
+                if (line.contains("P1")) return "P1";
+                if (line.contains("P2")) return "P2";
+                if (line.contains("P3")) return "P3";
+            }
+        }
+        return fallback;
+    }
+
+    private String parseRootCause(String rcaText, ParsedAlarm alarm) {
+        if (rcaText == null) return buildDefaultRca(alarm);
+        String[] lines = rcaText.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            if (line.contains("根因") && (line.contains("：") || line.contains(":"))) {
+                String after = line.split("根因")[1].replaceFirst("^[：:*\\s]+", "").trim();
+                if (after.length() >= 10 && after.length() < 300) return after;
+                if (i + 1 < lines.length && lines[i+1].trim().length() > 10) return lines[i+1].trim();
+            }
+        }
+        return buildDefaultRca(alarm);
+    }
+
+    private String buildDefaultRca(ParsedAlarm alarm) {
+        return String.format("服务: %s, 类型: %s, 置信度: %.0f%%",
+                alarm.getServiceName(), alarm.getAlarmType(), alarm.getConfidence() * 100);
+    }
+
+    private String parseImpactDesc(String rcaText, ParsedAlarm alarm) {
+        if (rcaText == null) return alarm.isUserImpact() ? "影响用户" : "未影响用户";
+        for (String line : rcaText.split("\n")) {
+            String lower = line.toLowerCase();
+            if ((lower.contains("用户") || lower.contains("影响")) && (lower.contains("：") || lower.contains(":"))) {
+                String after = line.split("[：:]", 2)[1].trim();
+                if (after.length() >= 4 && after.length() < 200) return after;
+            }
+        }
+        return alarm.isUserImpact() ? "影响用户" : "未影响用户";
     }
 
     // ======== Helper methods ========

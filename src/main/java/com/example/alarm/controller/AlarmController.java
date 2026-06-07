@@ -53,13 +53,20 @@ public class AlarmController {
                 "订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本",
                 "支付服务错误率突然上升到8%，数据库连接池耗尽，大量支付失败",
                 "库存服务CPU使用率持续100%，内存使用率90%，接口响应超时",
-                "用户服务数据库连接异常，出现大量Connection refused，认证服务超时"
+                "用户服务数据库连接异常，出现大量Connection refused，认证服务超时",
+                "order-service数据库连接池耗尽，active=50已达上限，12个请求等待中，下游payment-service响应变慢",
+                "payment-service调用inventory-service扣减库存超时8300ms，重试队列积压128条",
+                "inventory-service内存使用率90%触发频繁GC，出现OutOfMemoryError: GC overhead limit exceeded",
+                "user-service上游order-service请求量突增300%，疑似重试风暴引发连锁雪崩",
+                "支付服务数据库连接池配置从50降到40，更新后大量支付请求排队超时",
+                "这只是随便写写的异常"
         ));
         return ResponseEntity.ok(response);
     }
 
     private Map<String, Object> buildReportMap(AlarmReport report) {
         Map<String, Object> map = new LinkedHashMap<>();
+        map.put("analysisStatus", report.getAnalysisStatus());
         map.put("serviceName", report.getServiceName());
         map.put("alarmType", report.getAlarmType());
         map.put("riskLevel", report.getRiskLevel());

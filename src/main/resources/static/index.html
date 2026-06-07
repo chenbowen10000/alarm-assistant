@@ -549,6 +549,53 @@ body::after {
   .left-panel { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); }
   .right-panel { min-height: 400px; }
 }
+
+/* Parse-failed card */
+.parse-failed-card {
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.failed-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.failed-title {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--neon-amber);
+  margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+
+.failed-detail {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  max-width: 400px;
+  margin: 0 auto 24px auto;
+  text-align: left;
+  background: rgba(255,153,0,0.05);
+  border: 1px solid rgba(255,153,0,0.2);
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.failed-actions {
+  max-width: 400px;
+  margin: 0 auto 20px auto;
+  text-align: left;
+}
+
+.failed-action-item {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 2;
+  padding-left: 8px;
+}
 </style>
 </head>
 <body>
@@ -585,12 +632,8 @@ body::after {
       </span>
     </button>
 
-    <div class="quick-examples">
+    <div class="quick-examples" id="quickExamplesContainer">
       <div class="examples-label">快捷示例</div>
-      <button class="example-chip" onclick="setExample(0)">订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本</button>
-      <button class="example-chip" onclick="setExample(1)">支付服务错误率突然上升到8%，数据库连接池耗尽，大量用户支付失败</button>
-      <button class="example-chip" onclick="setExample(2)">库存服务CPU使用率持续100%，内存使用率90%，接口响应超时，库存查询不可用</button>
-      <button class="example-chip" onclick="setExample(3)">用户服务数据库连接异常大量Connection refused，认证服务超时，影响登录</button>
     </div>
   </div>
 
@@ -611,16 +654,41 @@ body::after {
 </div>
 
 <script>
-const examples = [
-  "订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本",
-  "支付服务错误率突然上升到8%，数据库连接池耗尽，大量用户支付失败",
-  "库存服务CPU使用率持续100%，内存使用率90%，接口响应超时，库存查询不可用",
-  "用户服务数据库连接异常大量Connection refused，认证服务超时，影响登录"
-];
+let alarmExamples = [];
 
-function setExample(i) {
-  document.getElementById('alarmInput').value = examples[i];
+async function loadExamples() {
+  try {
+    const resp = await fetch('/api/alarm/services');
+    const data = await resp.json();
+    alarmExamples = data.examples || [];
+    renderExampleChips();
+  } catch (e) {
+    console.warn('Failed to load examples, using defaults', e);
+    alarmExamples = [
+      '订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本',
+      '支付服务错误率突然上升到8%，数据库连接池耗尽，大量支付失败',
+      '库存服务CPU使用率持续100%，内存使用率90%，接口响应超时',
+      '用户服务数据库连接异常，出现大量Connection refused，认证服务超时'
+    ];
+    renderExampleChips();
+  }
 }
+
+function renderExampleChips() {
+  const container = document.getElementById('quickExamplesContainer');
+  if (!container) return;
+  const existingChips = container.querySelectorAll('.example-chip');
+  existingChips.forEach(c => c.remove());
+  alarmExamples.forEach((text, i) => {
+    const chip = document.createElement('button');
+    chip.className = 'example-chip';
+    chip.textContent = text;
+    chip.onclick = () => { document.getElementById('alarmInput').value = text; };
+    container.appendChild(chip);
+  });
+}
+
+loadExamples();
 
 async function analyzeAlarm() {
   const input = document.getElementById('alarmInput');
@@ -690,6 +758,18 @@ function updateStatusBar(data) {
 function renderReport(data) {
   const r = data.report;
   const card = document.getElementById('reportCard');
+
+  if (r.analysisStatus === 'PARSE_FAILED') {
+    card.innerHTML = '<div class="parse-failed-card">' +
+      '<div class="failed-icon">⚠️</div>' +
+      '<div class="failed-title">无法解析告警</div>' +
+      '<div class="failed-detail">' + (r.impactDescription || '告警文本未识别到有效信息') + '</div>' +
+      '<div class="failed-actions">' + (r.recommendedActions || []).map(a => '<div class="failed-action-item">• ' + a + '</div>').join('') + '</div>' +
+      '<div class="footer-bar"><span>状态: ⚠ 解析失败</span><span>耗时: ' + ((data.pipelineLatency||{}).total/1000).toFixed(1) + 's</span></div>' +
+      '</div>';
+    card.classList.add('visible');
+    return;
+  }
   const lat = data.pipelineLatency || {};
   const totalS = ((lat.total || 0) / 1000).toFixed(1);
 

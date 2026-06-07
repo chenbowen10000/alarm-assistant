@@ -12,8 +12,23 @@ public class ParsedAlarm {
     private boolean userImpact;
     private boolean needsEscalation;
     private double confidence;
+    private boolean parsed;
 
-    public ParsedAlarm() {}
+    public ParsedAlarm() {
+        this.parsed = true;
+    }
+
+    public static ParsedAlarm failed() {
+        ParsedAlarm alarm = new ParsedAlarm();
+        alarm.parsed = false;
+        alarm.serviceName = "unknown";
+        alarm.alarmType = "未知";
+        alarm.confidence = 0.0;
+        return alarm;
+    }
+
+    public boolean isParsed() { return parsed; }
+    public void setParsed(boolean parsed) { this.parsed = parsed; }
 
     public String getServiceName() { return serviceName; }
     public void setServiceName(String serviceName) { this.serviceName = serviceName; }

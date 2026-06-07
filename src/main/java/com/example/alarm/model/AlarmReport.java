@@ -7,6 +7,7 @@ import java.util.Map;
 
 public class AlarmReport {
 
+    private String analysisStatus;
     private String serviceName;
     private String alarmType;
     private String riskLevel;
@@ -24,6 +25,9 @@ public class AlarmReport {
     private String nextCheckTime;
 
     public AlarmReport() {}
+
+    public String getAnalysisStatus() { return analysisStatus; }
+    public void setAnalysisStatus(String analysisStatus) { this.analysisStatus = analysisStatus; }
 
     public String getServiceName() { return serviceName; }
     public void setServiceName(String serviceName) { this.serviceName = serviceName; }
