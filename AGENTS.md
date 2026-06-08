@@ -28,6 +28,7 @@
 | 管线 | `pipeline/ModelFallbackHandler.java` | 模型故障转移（主→备→规则引擎） |
 | 控制器 | `controller/AlarmController.java` | `POST /api/alarm/analyze` |
 | 异常 | `exception/GlobalExceptionHandler.java` | 统一异常处理 |
+| 测试 | `*/Test.java` | 12 个 JUnit 5 测试类（66 用例，86% 覆盖率） |
 
 ## 编码约定
 - 构造器注入（不使用 `@Autowired`）

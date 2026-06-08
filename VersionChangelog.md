@@ -1,4 +1,4 @@
-# 企业运维告警智能处置助手 — 项目计划与版本记录
+﻿# 企业运维告警智能处置助手 — 项目计划与版本记录
 
 ## 项目计划（Plan）
 
@@ -136,5 +136,48 @@ java -jar E:\geek\alarm-assistant\target\alarm-assistant-0.0.1-SNAPSHOT.jar
 | `pipeline/AlarmAnalysisPipeline.java` | `generateReport()` 改用 `parseRiskLevel()` / `parseRootCause()` / `parseImpactDesc()` |
 
 **效果**：`riskLevel: P1, severity: 严重`，不再出现乱码。
+
+---
+### v1.5 — JUnit 5 单元测试 + JaCoCo 覆盖率 (2026-06-08)
+
+**内容**：为全部 6 个包生成 12 个 JUnit 5 测试类，集成 JaCoCo 覆盖率插件，总覆盖率 86%。
+
+**新增文件**：
+
+| 文件 | 包 | 用例数 |
+|------|-----|--------|
+| `AlarmAnalysisPipelineTest.java` | `pipeline/` | 9 |
+| `ModelFallbackHandlerTest.java` | `pipeline/` | 5 |
+| `GlobalExceptionHandlerTest.java` | `exception/` | 7 |
+| `AlarmControllerTest.java` | `controller/` | 4 |
+| `OpsMockDataStoreTest.java` | `mock/` | 12 |
+| `AlarmReportTest.java` | `model/` | 5 |
+| `ToolResultTest.java` | `model/` | 4 |
+| `ServiceStatusToolTest.java` | `tools/` | 3 |
+| `ErrorLogToolTest.java` | `tools/` | 4 |
+| `DeployRecordToolTest.java` | `tools/` | 3 |
+| `DependencyToolTest.java` | `tools/` | 3 |
+| `ResourceMetricsToolTest.java` | `tools/` | 3 |
+
+**修改文件**：
+
+| 文件 | 改动 |
+|------|------|
+| `pom.xml` | 新增 `spring-boot-starter-test` 依赖 + `jacoco-maven-plugin` 0.8.11 |
+
+**覆盖率（JaCoCo）**：
+
+| 包 | 指令 | 分支 |
+|---|------|------|
+| `tools` | 100% | 100% |
+| `exception` | 100% | n/a |
+| `mock` | 97% | 76% |
+| `model` | 91% | 75% |
+| `controller` | 84% | 83% |
+| `config` | 82% | 100% |
+| `pipeline` | 81% | 45% |
+| **总计** | **86%** | **50%** |
+
+**测试框架**：JUnit 5 + Mockito + AssertJ，`@WebMvcTest` 用于 Controller 层，`@ExtendWith(MockitoExtension.class)` 用于 Service 层。
 
 ---

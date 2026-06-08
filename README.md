@@ -124,6 +124,28 @@ alarm-assistant/
 | max-tokens | 2000 | 2000 |
 | timeout | 30s | 30s |
 
+## 测试
+
+```powershell
+# 运行所有测试
+E:\apache-maven-3.6.3\bin\mvn -f E:\geek\alarm-assistant\pom.xml clean test
+
+# 查看覆盖率报告
+# 浏览器打开: target/site/jacoco/index.html
+```
+
+**测试覆盖**
+
+| 包 | 测试文件 | 覆盖 |
+|---|---------|------|
+| `tools` | 5 个 ToolTest | 100% |
+| `exception` | GlobalExceptionHandlerTest | 100% |
+| `mock` | OpsMockDataStoreTest | 97% |
+| `model` | AlarmReportTest, ToolResultTest | 91% |
+| `controller` | AlarmControllerTest | 84% |
+| `config` | ModelFallbackHandlerTest | 82% |
+| `pipeline` | AlarmAnalysisPipelineTest, ModelFallbackHandlerTest | 81% |
+| **总计** | **12 个测试类 / 66 个用例** | **86%** |
 ## 技术栈
 
 | 组件 | 版本 |
