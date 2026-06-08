@@ -3,859 +3,369 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>⚡ ALARM OPS — 企业运维告警智能处置</title>
+<title>? ALARM OPS ? Enterprise Alarm Assistant</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg-deep: #0d1117;
-  --bg-panel: #161b22;
-  --bg-card: #1c2333;
-  --border: #30363d;
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
-  --neon-green: #00ff88;
-  --neon-amber: #ff9900;
-  --neon-red: #ff0066;
-  --neon-blue: #58a6ff;
-  --neon-purple: #bc8cff;
-  --font-display: "DM Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
-  --scanline-opacity: 0.03;
+  --bg-deep: #0d1117; --bg-panel: #161b22; --bg-card: #1c2333; --border: #30363d;
+  --text-primary: #e6edf3; --text-secondary: #8b949e; --text-muted: #484f58;
+  --neon-green: #00ff88; --neon-amber: #ff9900; --neon-red: #ff0066; --neon-blue: #58a6ff;
+  --font-display: "DM Sans", system-ui, sans-serif; --font-mono: "JetBrains Mono", monospace;
 }
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
+* { margin:0; padding:0; box-sizing:border-box; }
 body {
-  background: var(--bg-deep);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  min-height: 100vh;
-  overflow-x: hidden;
+  background: var(--bg-deep); color: var(--text-primary);
+  font-family: var(--font-display); min-height:100vh; overflow-x:hidden;
 }
-
-/* scanline overlay */
 body::after {
-  content: "";
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,255,136,0.015) 2px,
-    rgba(0,255,136,0.015) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
+  content:""; position:fixed; top:0; left:0; right:0; bottom:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,136,0.015) 2px,rgba(0,255,136,0.015) 4px);
+  pointer-events:none; z-index:9999;
 }
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--bg-deep); }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--neon-green); }
 
-/* scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-deep); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--neon-green); }
-
-/* Header */
 .header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 28px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  backdrop-filter: blur(12px);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 28px; background:var(--bg-panel); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100; backdrop-filter:blur(12px);
 }
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-icon {
-  font-size: 24px;
-  animation: pulse-icon 2s ease-in-out infinite;
-}
-
+.header-left { display:flex; align-items:center; gap:12px; }
+.logo-icon { font-size:24px; animation:pulse-icon 2s ease-in-out infinite; }
 @keyframes pulse-icon {
-  0%, 100% { text-shadow: 0 0 8px var(--neon-green); }
-  50% { text-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--neon-green); }
+  0%,100% { text-shadow:0 0 8px var(--neon-green); }
+  50% { text-shadow:0 0 20px var(--neon-green),0 0 40px var(--neon-green); }
 }
+.logo-text { font-family:var(--font-mono); font-size:18px; font-weight:700; color:var(--neon-green); letter-spacing:2px; text-transform:uppercase; }
+.status-bar { display:flex; align-items:center; gap:20px; }
+.model-status { display:flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:11px; color:var(--text-secondary); }
+.status-dot { width:8px; height:8px; border-radius:50%; position:relative; }
+.status-dot.online { background:var(--neon-green); box-shadow:0 0 8px var(--neon-green); animation:breathe 2s ease-in-out infinite; }
+.status-dot.standby { background:var(--neon-amber); box-shadow:0 0 4px var(--neon-amber); }
+.status-dot.offline { background:var(--neon-red); box-shadow:0 0 4px var(--neon-red); }
+@keyframes breathe { 0%,100% { box-shadow:0 0 8px var(--neon-green); } 50% { box-shadow:0 0 16px var(--neon-green),0 0 24px var(--neon-green); } }
 
-.logo-text {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--neon-green);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
+.main-container { display:flex; height:calc(100vh - 57px); }
+.left-panel { width:40%; min-width:360px; padding:20px; background:var(--bg-panel); border-right:1px solid var(--border); display:flex; flex-direction:column; gap:14px; }
+.right-panel { flex:1; padding:24px; overflow-y:auto; background:var(--bg-deep); }
 
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
+.panel-title { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--neon-green); text-transform:uppercase; letter-spacing:2px; }
+.panel-title::before { content:"> "; }
 
-.model-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
+.alarm-textarea { width:100%; height:140px; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-family:var(--font-mono); font-size:13px; padding:14px; resize:vertical; caret-color:var(--neon-green); }
+.alarm-textarea:focus { outline:none; border-color:var(--neon-green); box-shadow:0 0 0 3px rgba(0,255,136,0.1); }
 
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  position: relative;
-}
+.btn-row { display:flex; gap:10px; }
+.btn { padding:10px 16px; border-radius:6px; font-family:var(--font-mono); font-size:13px; font-weight:700; letter-spacing:2px; cursor:pointer; transition:all 0.3s; text-transform:uppercase; }
+.btn-primary { flex:1; background:transparent; border:1px solid var(--neon-green); color:var(--neon-green); }
+.btn-primary:hover { background:rgba(0,255,136,0.08); box-shadow:0 0 24px rgba(0,255,136,0.2); }
+.btn-secondary { background:transparent; border:1px solid var(--border); color:var(--text-secondary); }
+.btn-secondary:hover { border-color:var(--text-primary); color:var(--text-primary); }
+.btn.loading { pointer-events:none; border-color:var(--neon-amber) !important; color:var(--neon-amber) !important; }
 
-.status-dot.online {
-  background: var(--neon-green);
-  box-shadow: 0 0 8px var(--neon-green);
-  animation: breathe 2s ease-in-out infinite;
-}
+.quick-examples { display:flex; flex-direction:column; gap:6px; }
+.examples-label { font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:2px; }
+.example-chip { background:var(--bg-card); border:1px solid var(--border); border-radius:4px; padding:8px 12px; color:var(--text-secondary); font-size:12px; font-family:var(--font-mono); cursor:pointer; text-align:left; transition:all 0.2s; }
+.example-chip:hover { border-color:var(--neon-blue); color:var(--neon-blue); background:rgba(88,166,255,0.05); }
 
-.status-dot.standby {
-  background: var(--neon-amber);
-  box-shadow: 0 0 4px var(--neon-amber);
-}
+.history-section { margin-top:auto; border-top:1px solid var(--border); padding-top:12px; max-height:200px; overflow-y:auto; }
+.history-item { padding:8px; border:1px solid var(--border); border-radius:4px; margin-bottom:6px; cursor:pointer; font-family:var(--font-mono); font-size:11px; color:var(--text-secondary); transition:all 0.2s; }
+.history-item:hover { border-color:var(--neon-blue); background:rgba(88,166,255,0.05); }
 
-@keyframes breathe {
-  0%, 100% { box-shadow: 0 0 8px var(--neon-green); }
-  50% { box-shadow: 0 0 16px var(--neon-green), 0 0 24px var(--neon-green); }
-}
-
-.model-label { color: var(--text-muted); }
-
-.model-name {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-/* Main layout */
-.main-container {
-  display: flex;
-  height: calc(100vh - 57px);
-  gap: 0;
-}
-
-/* Left panel - Input */
-.left-panel {
-  width: 40%;
-  min-width: 380px;
-  padding: 24px;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.panel-title {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--neon-green);
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-title::before {
-  content: ">";
-  color: var(--neon-green);
-}
-
-.alarm-textarea {
-  width: 100%;
-  height: 200px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 16px;
-  resize: vertical;
-  transition: border-color 0.3s, box-shadow 0.3s;
-  caret-color: var(--neon-green);
-}
-
-.alarm-textarea:focus {
-  outline: none;
-  border-color: var(--neon-green);
-  box-shadow: 0 0 0 3px rgba(0,255,136,0.1), 0 0 20px rgba(0,255,136,0.05);
-}
-
-.alarm-textarea::placeholder {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-.analyze-btn {
-  width: 100%;
-  padding: 14px;
-  background: transparent;
-  border: 1px solid var(--neon-green);
-  border-radius: 6px;
-  color: var(--neon-green);
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.analyze-btn:hover {
-  background: rgba(0,255,136,0.08);
-  box-shadow: 0 0 24px rgba(0,255,136,0.2);
-}
-
-.analyze-btn:active {
-  transform: scale(0.98);
-}
-
-.analyze-btn.loading {
-  border-color: var(--neon-amber);
-  color: var(--neon-amber);
-  pointer-events: none;
-}
-
-.analyze-btn.loading:hover {
-  background: transparent;
-  box-shadow: none;
-}
-
-.analyze-btn .btn-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.spinner {
-  display: none;
-  width: 18px;
-  height: 18px;
-  border: 2px solid transparent;
-  border-top-color: var(--neon-amber);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.analyze-btn.loading .spinner { display: block; }
-.analyze-btn.loading .btn-text { color: var(--neon-amber); }
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.quick-examples {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.examples-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  margin-bottom: 4px;
-}
-
-.example-chip {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 10px 14px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-  line-height: 1.4;
-}
-
-.example-chip:hover {
-  border-color: var(--neon-blue);
-  color: var(--neon-blue);
-  background: rgba(88,166,255,0.05);
-}
-
-/* Right panel - Results */
-.right-panel {
-  flex: 1;
-  padding: 24px;
-  overflow-y: auto;
-  background: var(--bg-deep);
-}
-
-.placeholder-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 400px;
-  text-align: center;
-  color: var(--text-muted);
-  gap: 16px;
-}
-
-.placeholder-icon {
-  font-size: 64px;
-  opacity: 0.3;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.placeholder-text {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  letter-spacing: 2px;
-}
-
-.placeholder-sub {
-  font-family: var(--font-display);
-  font-size: 13px;
-  opacity: 0.6;
-}
+/* Progress */
+.progress { display:none; margin:16px 0; }
+.progress.active { display:block; }
+.progress-steps { display:flex; gap:6px; }
+.progress-step { flex:1; text-align:center; padding:8px 4px; border-radius:4px; background:rgba(255,255,255,0.02); border:1px solid var(--border); font-family:var(--font-mono); font-size:10px; color:var(--text-muted); transition:all 0.3s; }
+.progress-step.done { border-color:var(--neon-green); color:var(--neon-green); background:rgba(0,255,136,0.05); }
+.progress-step.running { border-color:var(--neon-amber); color:var(--neon-amber); animation:pulse-border 1s infinite; }
+@keyframes pulse-border { 50% { border-color:rgba(255,153,0,0.3); } }
+.progress-step .step-label { display:block; font-size:8px; margin-top:2px; color:var(--text-muted); }
 
 /* Report card */
-.report-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 24px;
-  animation: slideIn 0.5s ease-out;
-  display: none;
-}
+.report-card { display:none; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:24px; animation:slideIn 0.4s ease-out; margin-bottom:20px; }
+.report-card.visible { display:block; }
+@keyframes slideIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
-.report-card.visible {
-  display: block;
-}
+.risk-badge { display:inline-flex; align-items:center; gap:8px; padding:6px 16px; border-radius:4px; font-family:var(--font-mono); font-size:20px; font-weight:700; margin-bottom:16px; }
+.risk-badge.P0 { background:rgba(255,0,102,0.15); color:var(--neon-red); border:1px solid rgba(255,0,102,0.3); animation:breathe-badge 1.5s infinite; }
+.risk-badge.P1 { background:rgba(255,153,0,0.15); color:var(--neon-amber); border:1px solid rgba(255,153,0,0.3); animation:breathe-badge 2.5s infinite; }
+.risk-badge.P2 { background:rgba(88,166,255,0.15); color:var(--neon-blue); border:1px solid rgba(88,166,255,0.3); }
+.risk-badge.P3 { background:rgba(0,255,136,0.1); color:var(--neon-green); border:1px solid rgba(0,255,136,0.2); }
+@keyframes breathe-badge { 50% { box-shadow:0 0 12px currentColor; } }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(30px); }
-  to { opacity: 1; transform: translateX(0); }
-}
+.report-section { margin-bottom:14px; }
+.report-label { font-family:var(--font-mono); font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:2px; margin-bottom:4px; }
+.report-value { font-family:var(--font-mono); font-size:13px; color:var(--text-primary); line-height:1.5; }
+.report-divider { border:none; border-top:1px solid var(--border); margin:14px 0; }
+.action-list { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.action-list li { font-family:var(--font-mono); font-size:12px; padding:8px 12px; background:rgba(0,255,136,0.04); border-left:2px solid var(--neon-green); border-radius:0 4px 4px 0; }
+.evidence-list { list-style:none; }
+.evidence-list li { font-family:var(--font-mono); font-size:11px; padding:3px 0; color:var(--text-secondary); }
+.footer-bar { font-family:var(--font-mono); font-size:11px; color:var(--text-muted); padding-top:12px; border-top:1px solid var(--border); margin-top:16px; display:flex; justify-content:space-between; align-items:center; }
 
-.risk-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 20px;
-}
+.placeholder-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; min-height:300px; color:var(--text-muted); gap:12px; }
+.placeholder-icon { font-size:56px; opacity:0.3; animation:float 3s ease-in-out infinite; }
+@keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
 
-.risk-badge.P0 { background: rgba(255,0,102,0.15); color: var(--neon-red); border: 1px solid rgba(255,0,102,0.3); }
-.risk-badge.P1 { background: rgba(255,153,0,0.15); color: var(--neon-amber); border: 1px solid rgba(255,153,0,0.3); }
-.risk-badge.P2 { background: rgba(88,166,255,0.15); color: var(--neon-blue); border: 1px solid rgba(88,166,255,0.3); }
-.risk-badge.P3 { background: rgba(0,255,136,0.1); color: var(--neon-green); border: 1px solid rgba(0,255,136,0.2); }
-
-.report-section {
-  margin-bottom: 20px;
-}
-
-.report-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  margin-bottom: 6px;
-}
-
-.report-value {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--text-primary);
-  line-height: 1.6;
-}
-
-.report-value.key {
-  color: var(--neon-green);
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.report-divider {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 16px 0;
-}
-
-.action-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.action-list li {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-primary);
-  padding: 8px 12px;
-  background: rgba(0,255,136,0.04);
-  border-left: 2px solid var(--neon-green);
-  border-radius: 0 4px 4px 0;
-}
-
-.evidence-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.evidence-list li {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-  padding: 4px 0;
-}
-
-.evidence-ok { color: var(--neon-green) !important; }
-.evidence-fail { color: var(--neon-red) !important; }
-
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.metric-item {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 10px 12px;
-}
-
-.metric-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-
-.metric-value {
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--neon-green);
-  margin-top: 4px;
-}
-
-.metric-value.warn { color: var(--neon-amber); }
-.metric-value.danger { color: var(--neon-red); }
-
-.footer-bar {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 12px 0 0 0;
-  border-top: 1px solid var(--border);
-  margin-top: 20px;
-  display: flex;
-  justify-content: space-between;
-}
-
-/* Loading pulse animation */
-.loading-pulse {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-height: 400px;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.loading-pulse.active {
-  display: flex;
-}
-
-.pulse-ring {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  border: 2px solid var(--neon-amber);
-  animation: pulse-ring 1.5s ease-out infinite;
-  position: relative;
-}
-
-.pulse-ring::after {
-  content: "";
-  position: absolute;
-  top: -4px; left: -4px; right: -4px; bottom: -4px;
-  border-radius: 50%;
-  border: 1px solid rgba(255,153,0,0.4);
-  animation: pulse-ring-outer 1.5s ease-out infinite;
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  50% { transform: scale(1); opacity: 0.5; }
-  100% { transform: scale(0.8); opacity: 1; }
-}
-
-@keyframes pulse-ring-outer {
-  0% { transform: scale(1); opacity: 0.5; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-
-.pulse-text {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--neon-amber);
-  letter-spacing: 2px;
-}
-
-/* Responsive */
-@media (max-width: 860px) {
-  .main-container { flex-direction: column; }
-  .left-panel { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); }
-  .right-panel { min-height: 400px; }
-}
-
-/* Parse-failed card */
-.parse-failed-card {
-  padding: 32px 24px;
-  text-align: center;
-}
-
-.failed-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.8;
-}
-
-.failed-title {
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--neon-amber);
-  margin-bottom: 16px;
-  letter-spacing: 2px;
-}
-
-.failed-detail {
-  font-size: 14px;
-  color: var(--text-secondary);
-  line-height: 1.8;
-  max-width: 400px;
-  margin: 0 auto 24px auto;
-  text-align: left;
-  background: rgba(255,153,0,0.05);
-  border: 1px solid rgba(255,153,0,0.2);
-  border-radius: 6px;
-  padding: 16px;
-}
-
-.failed-actions {
-  max-width: 400px;
-  margin: 0 auto 20px auto;
-  text-align: left;
-}
-
-.failed-action-item {
-  font-size: 13px;
-  color: var(--text-muted);
-  line-height: 2;
-  padding-left: 8px;
-}
+@media (max-width:860px) { .main-container { flex-direction:column; } .left-panel { width:100%; min-width:0; } }
 </style>
 </head>
 <body>
 
 <header class="header">
-  <div class="header-left">
-    <span class="logo-icon">⚡</span>
-    <span class="logo-text">ALARM OPS</span>
-  </div>
+  <div class="header-left"><span class="logo-icon">?</span><span class="logo-text">ALARM OPS</span></div>
   <div class="status-bar">
-    <div class="model-status">
-      <span class="status-dot online" id="primaryDot"></span>
-      <span class="model-label">主模型</span>
-      <span class="model-name" id="primaryLabel">DeepSeek · ONLINE</span>
-    </div>
-    <div class="model-status">
-      <span class="status-dot standby" id="fallbackDot"></span>
-      <span class="model-label">备用</span>
-      <span class="model-name" id="fallbackLabel">Qwen · STANDBY</span>
-    </div>
+    <div class="model-status"><span class="status-dot online" id="primaryDot"></span><span id="primaryLabel">DeepSeek</span></div>
+    <div class="model-status"><span class="status-dot standby" id="fallbackDot"></span><span id="fallbackLabel">Qwen</span></div>
   </div>
 </header>
 
 <div class="main-container">
-
-  <!-- Left Panel -->
-  <div class="left-panel">
-    <div class="panel-title">告警输入</div>
-    <textarea class="alarm-textarea" id="alarmInput" placeholder="> 请输入运维告警文本..."></textarea>
-    <button class="analyze-btn" id="analyzeBtn" onclick="analyzeAlarm()">
-      <span class="btn-content">
-        <span class="spinner"></span>
-        <span class="btn-text">⚡ 开始分析</span>
-      </span>
-    </button>
-
-    <div class="quick-examples" id="quickExamplesContainer">
-      <div class="examples-label">快捷示例</div>
-    </div>
+<div class="left-panel">
+  <div class="panel-title">Alarm Input</div>
+  <textarea class="alarm-textarea" id="alarmInput" placeholder="> Enter alarm text..."></textarea>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">? Analyze</button>
+    <button class="btn btn-secondary" id="streamBtn" onclick="runStreamAnalysis()">?? Stream</button>
   </div>
-
-  <!-- Right Panel -->
-  <div class="right-panel" id="rightPanel">
-    <div class="placeholder-state" id="placeholder">
-      <div class="placeholder-icon">📡</div>
-      <div class="placeholder-text">等待告警输入...</div>
-      <div class="placeholder-sub">输入告警文本并点击分析，查看结构化处置报告</div>
-    </div>
-    <div class="loading-pulse" id="loadingPulse">
-      <div class="pulse-ring"></div>
-      <div class="pulse-text">分析中 · 调用工具 · 推理根因</div>
-    </div>
-    <div class="report-card" id="reportCard"></div>
+  <div class="quick-examples">
+    <div class="examples-label">Examples</div>
+    <button class="example-chip" onclick="setEx(0)">Order service timeout 15%, P99 >5s, v2.3.1 deployed 10min ago</button>
+    <button class="example-chip" onclick="setEx(1)">Payment service error rate 8%, DB pool exhausted</button>
+    <button class="example-chip" onclick="setEx(2)">Inventory CPU 100% memory 90% query timeout</button>
+    <button class="example-chip" onclick="setEx(3)">User service DB connection refused, auth timeout</button>
   </div>
+  <div class="history-section" id="historySection">
+    <div class="examples-label">History</div>
+    <div id="historyList"></div>
+  </div>
+</div>
 
+<div class="right-panel" id="rightPanel">
+  <div class="placeholder-state" id="placeholder"><div class="placeholder-icon">??</div><div style="font-family:var(--font-mono);font-size:13px;">Waiting for alarm input...</div></div>
+  <div class="progress" id="progress"><div class="progress-steps">
+    <div class="progress-step" id="p-parse"><span>1??</span><span class="step-label">Parse</span></div>
+    <div class="progress-step" id="p-tools"><span>2??</span><span class="step-label">Tools</span></div>
+    <div class="progress-step" id="p-evidence"><span>3??</span><span class="step-label">Evidence</span></div>
+    <div class="progress-step" id="p-rca"><span>4??</span><span class="step-label">RCA</span></div>
+    <div class="progress-step" id="p-report"><span>5??</span><span class="step-label">Report</span></div>
+  </div></div>
+  <div id="reportContainer"></div>
+</div>
 </div>
 
 <script>
-let alarmExamples = [];
+const ex = [
+  "Order service timeout rate 15%, P99 >5s, affecting users, v2.3.1 deployed 10min ago",
+  "Payment service error rate 8%, DB connection pool exhausted, many failures",
+  "Inventory service CPU 100% memory 90%, query timeout",
+  "User service DB connection refused, auth timeout"
+];
+let currentSessionId = null;
 
-async function loadExamples() {
+function setEx(i) { document.getElementById('alarmInput').value = ex[i]; }
+
+async function runAnalysis() {
+  const text = document.getElementById('alarmInput').value.trim();
+  if (!text) return;
+  const btn = document.getElementById('analyzeBtn');
+  btn.classList.add('loading'); btn.textContent = '...';
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('progress').classList.add('active');
+  document.getElementById('reportContainer').innerHTML = '';
+
+  const body = { alarmText: text };
+  if (currentSessionId) body.sessionId = currentSessionId;
+
   try {
-    const resp = await fetch('/api/alarm/services');
-    const data = await resp.json();
-    alarmExamples = data.examples || [];
-    renderExampleChips();
-  } catch (e) {
-    console.warn('Failed to load examples, using defaults', e);
-    alarmExamples = [
-      '订单服务接口超时率达到15%，P99延迟超过5秒，影响用户下单，刚在10分钟前发布了v2.3.1版本',
-      '支付服务错误率突然上升到8%，数据库连接池耗尽，大量支付失败',
-      '库存服务CPU使用率持续100%，内存使用率90%，接口响应超时',
-      '用户服务数据库连接异常，出现大量Connection refused，认证服务超时'
-    ];
-    renderExampleChips();
+    const res = await fetch('/api/alarm/analyze', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const data = await res.json();
+    if (!currentSessionId && data.sessionId) currentSessionId = data.sessionId;
+    renderReport(data);
+    updateStatusBar(data);
+    markAllProgressDone();
+  } catch(e) {
+    document.getElementById('reportContainer').innerHTML = '<div style="color:var(--neon-red);padding:20px">Error: '+e.message+'</div>';
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = '? Analyze';
   }
 }
 
-function renderExampleChips() {
-  const container = document.getElementById('quickExamplesContainer');
-  if (!container) return;
-  const existingChips = container.querySelectorAll('.example-chip');
-  existingChips.forEach(c => c.remove());
-  alarmExamples.forEach((text, i) => {
-    const chip = document.createElement('button');
-    chip.className = 'example-chip';
-    chip.textContent = text;
-    chip.onclick = () => { document.getElementById('alarmInput').value = text; };
-    container.appendChild(chip);
+function runStreamAnalysis() {
+  const text = document.getElementById('alarmInput').value.trim();
+  if (!text) return;
+  const btn = document.getElementById('streamBtn');
+  btn.classList.add('loading'); btn.textContent = '...';
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('progress').classList.add('active');
+  document.getElementById('reportContainer').innerHTML = '';
+  resetProgress();
+  markStep('p-parse', 'running');
+
+  const es = new EventSource('/api/alarm/analyze/stream');
+  fetch('/api/alarm/analyze/stream', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({alarmText:text}) })
+    .then(r => {
+      if (!r.ok) throw new Error('Stream failed');
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      function process() {
+        reader.read().then(({done, value}) => {
+          if (done) { btn.classList.remove('loading'); btn.textContent = '?? Stream'; return; }
+          buffer += decoder.decode(value, {stream:true});
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          let eventType = '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('event:')) { eventType = trimmed.substring(6).trim(); continue; }
+            if (trimmed.startsWith('data:')) {
+              try {
+                const data = JSON.parse(trimmed.substring(5).trim());
+                if (eventType === 'step') handleStepEvent(data);
+                else if (eventType === 'report') { renderReport(data); updateStatusBar(data); markAllProgressDone(); }
+                else if (eventType === 'done') { btn.classList.remove('loading'); btn.textContent = '?? Stream'; }
+              } catch(e) {}
+            }
+          }
+          process();
+        });
+      }
+      process();
+    }).catch(e => {
+      btn.classList.remove('loading'); btn.textContent = '?? Stream';
+      document.getElementById('reportContainer').innerHTML += '<div style="color:var(--neon-red)">Stream error: '+e.message+'</div>';
+    });
+}
+
+function handleStepEvent(data) {
+  const stepMap = { parse:'p-parse', tools:'p-tools', evidence:'p-evidence', rca:'p-rca', report:'p-report' };
+  const id = stepMap[data.step];
+  if (id) {
+    if (data.status === 'done') markStep(id, 'done');
+    else if (data.status === 'running') markStep(id, 'running');
+  }
+}
+
+function markStep(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'progress-step ' + status;
+}
+
+function resetProgress() {
+  ['p-parse','p-tools','p-evidence','p-rca','p-report'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'progress-step';
   });
 }
 
-loadExamples();
-
-async function analyzeAlarm() {
-  const input = document.getElementById('alarmInput');
-  const text = input.value.trim();
-  if (!text) return;
-
-  const btn = document.getElementById('analyzeBtn');
-  btn.classList.add('loading');
-
-  const placeholder = document.getElementById('placeholder');
-  const loadingPulse = document.getElementById('loadingPulse');
-  const reportCard = document.getElementById('reportCard');
-
-  placeholder.style.display = 'none';
-  loadingPulse.classList.add('active');
-  reportCard.classList.remove('visible');
-
-  try {
-    const res = await fetch('/api/alarm/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alarmText: text })
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || '分析请求失败');
-    }
-
-    const data = await res.json();
-    renderReport(data);
-    updateStatusBar(data);
-  } catch (e) {
-    reportCard.innerHTML = '<div style="padding:24px;color:var(--neon-red);font-family:var(--font-mono)">⚠ ' + e.message + '</div>';
-    reportCard.classList.add('visible');
-  } finally {
-    btn.classList.remove('loading');
-    loadingPulse.classList.remove('active');
-  }
+function markAllProgressDone() {
+  ['p-parse','p-tools','p-evidence','p-rca','p-report'].forEach(id => markStep(id, 'done'));
 }
 
 function updateStatusBar(data) {
-  const model = data.modelUsed || '';
+  const m = data.modelUsed || '';
   const fb = data.fallbackActivated;
-  const primaryDot = document.getElementById('primaryDot');
-  const fallbackDot = document.getElementById('fallbackDot');
-  const primaryLabel = document.getElementById('primaryLabel');
-  const fallbackLabel = document.getElementById('fallbackLabel');
   const totalMs = data.pipelineLatency ? data.pipelineLatency.total : 0;
   const totalS = (totalMs / 1000).toFixed(1);
-
   if (fb) {
-    primaryDot.className = 'status-dot';
-    primaryDot.style.background = 'var(--neon-red)';
-    primaryDot.style.boxShadow = '0 0 4px var(--neon-red)';
-    primaryLabel.textContent = 'DeepSeek · FAILED';
-    fallbackDot.className = 'status-dot online';
-    fallbackLabel.textContent = 'Qwen · ACTIVE (' + totalS + 's)';
+    document.getElementById('primaryDot').className = 'status-dot offline';
+    document.getElementById('primaryLabel').textContent = 'DeepSeek FAILED';
+    document.getElementById('fallbackDot').className = 'status-dot online';
+    document.getElementById('fallbackLabel').textContent = 'Qwen ACTIVE ('+totalS+'s)';
   } else {
-    primaryDot.className = 'status-dot online';
-    primaryLabel.textContent = 'DeepSeek · ONLINE (' + totalS + 's)';
-    fallbackDot.className = 'status-dot standby';
-    fallbackLabel.textContent = 'Qwen · STANDBY';
+    document.getElementById('primaryDot').className = 'status-dot online';
+    document.getElementById('primaryLabel').textContent = 'DeepSeek ('+totalS+'s)';
+    document.getElementById('fallbackDot').className = 'status-dot standby';
+    document.getElementById('fallbackLabel').textContent = 'Qwen STANDBY';
   }
 }
 
 function renderReport(data) {
-  const r = data.report;
-  const card = document.getElementById('reportCard');
-
-  if (r.analysisStatus === 'PARSE_FAILED') {
-    card.innerHTML = '<div class="parse-failed-card">' +
-      '<div class="failed-icon">⚠️</div>' +
-      '<div class="failed-title">无法解析告警</div>' +
-      '<div class="failed-detail">' + (r.impactDescription || '告警文本未识别到有效信息') + '</div>' +
-      '<div class="failed-actions">' + (r.recommendedActions || []).map(a => '<div class="failed-action-item">• ' + a + '</div>').join('') + '</div>' +
-      '<div class="footer-bar"><span>状态: ⚠ 解析失败</span><span>耗时: ' + ((data.pipelineLatency||{}).total/1000).toFixed(1) + 's</span></div>' +
-      '</div>';
-    card.classList.add('visible');
-    return;
-  }
-  const lat = data.pipelineLatency || {};
-  const totalS = ((lat.total || 0) / 1000).toFixed(1);
+  const r = data.report || data;
+  const totalMs = data.pipelineLatency ? data.pipelineLatency.total : 0;
+  const analysisId = data.analysisId || '';
 
   let metricsHtml = '';
   if (r.keyMetrics && Object.keys(r.keyMetrics).length > 0) {
-    metricsHtml = '<div class="metrics-grid">';
-    for (const [k, v] of Object.entries(r.keyMetrics)) {
-      let cls = '';
-      const vStr = String(v).toLowerCase();
-      if (vStr.includes('100') || vStr.includes('15') || vStr.includes('耗尽') || vStr.includes('error')) cls = ' danger';
-      else if (vStr.includes('90') || vStr.includes('8') || vStr.includes('slow') || vStr.includes('5s')) cls = ' warn';
-      metricsHtml += '<div class="metric-item"><div class="metric-label">' + k + '</div><div class="metric-value' + cls + '">' + v + '</div></div>';
+    metricsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:4px">';
+    for (const [k,v] of Object.entries(r.keyMetrics)) {
+      metricsHtml += '<div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:4px;padding:8px 10px"><div style="font-size:10px;color:var(--text-muted)">'+k+'</div><div style="font-size:14px;font-weight:700;color:var(--neon-green);margin-top:2px">'+v+'</div></div>';
     }
     metricsHtml += '</div>';
   }
 
   let actionsHtml = '';
-  if (r.recommendedActions && r.recommendedActions.length > 0) {
+  if (r.recommendedActions) {
     actionsHtml = '<ul class="action-list">';
-    r.recommendedActions.forEach(a => { actionsHtml += '<li>' + a + '</li>'; });
+    r.recommendedActions.forEach(a => actionsHtml += '<li>'+a+'</li>');
     actionsHtml += '</ul>';
   }
 
   let evidenceHtml = '';
-  if (r.evidence && r.evidence.length > 0) {
+  if (r.evidence) {
     evidenceHtml = '<ul class="evidence-list">';
-    r.evidence.forEach(e => {
-      const cls = e.includes('✓') ? 'evidence-ok' : (e.includes('✗') ? 'evidence-fail' : '');
-      evidenceHtml += '<li class="' + cls + '">' + e + '</li>';
-    });
+    r.evidence.forEach(e => evidenceHtml += '<li>'+e+'</li>');
     evidenceHtml += '</ul>';
   }
 
-  let followHtml = '';
-  if (r.followUpMetrics && r.followUpMetrics.length > 0) {
-    followHtml = r.followUpMetrics.map(f => '<span style="margin-right:12px;color:var(--text-muted);font-size:12px">● ' + f + '</span>').join('');
+  let mdBtn = '';
+  if (analysisId) {
+    mdBtn = '<button class="btn btn-secondary" style="padding:6px 12px;font-size:11px" onclick="downloadMd(\''+analysisId+'\')">?? MD</button>';
   }
 
+  const card = document.createElement('div');
+  card.className = 'report-card visible';
   card.innerHTML = [
-    '<span class="risk-badge ' + (r.riskLevel||'P2') + '">⚠ ' + (r.riskLevel||'?') + ' · ' + (r.severity||'?') + '</span>',
-    '<div class="report-section"><div class="report-label">服务名称</div><div class="report-value key">' + (r.serviceName||'?') + '</div></div>',
-    '<div class="report-section"><div class="report-label">告警类型</div><div class="report-value">' + (r.alarmType||'?') + '</div></div>',
-    metricsHtml ? '<div class="report-section"><div class="report-label">异常指标</div>' + metricsHtml + '</div>' : '',
+    '<span class="risk-badge '+(r.riskLevel||'P2')+'">? '+(r.riskLevel||'?')+' ? '+(r.severity||'?')+'</span>',
+    '<div class="report-section"><div class="report-label">Service</div><div class="report-value" style="color:var(--neon-green);font-size:16px;font-weight:700">'+(r.serviceName||'?')+'</div></div>',
+    '<div class="report-section"><div class="report-label">Alarm Type</div><div class="report-value">'+(r.alarmType||'?')+'</div></div>',
+    metricsHtml ? '<div class="report-section"><div class="report-label">Key Metrics</div>'+metricsHtml+'</div>' : '',
     '<hr class="report-divider">',
-    '<div class="report-section"><div class="report-label">用户影响</div><div class="report-value ' + (r.userImpact?'':'') + '">' + (r.userImpact ? '⚠ 是 — ' + (r.impactDescription||'有影响') : '否') + '</div></div>',
-    '<div class="report-section"><div class="report-label">可能根因</div><div class="report-value">' + (r.possibleRootCause||'待确认') + '</div></div>',
-    '<div class="report-section"><div class="report-label">置信度</div><div class="report-value">' + ((r.confidence||0)*100).toFixed(0) + '%</div></div>',
+    '<div class="report-section"><div class="report-label">Root Cause</div><div class="report-value">'+(r.possibleRootCause||'Pending')+'</div></div>',
+    '<div class="report-section"><div class="report-label">Confidence</div><div class="report-value">'+((r.confidence||0)*100).toFixed(0)+'%</div></div>',
     '<hr class="report-divider">',
-    actionsHtml ? '<div class="report-section"><div class="report-label">推荐处置动作</div>' + actionsHtml + '</div>' : '',
-    '<div class="report-section"><div class="report-label">是否回滚</div><div class="report-value ' + (r.shouldRollback?'':'') + '">' + (r.shouldRollback ? '⚠ 建议回滚' : '暂不需要') + '</div></div>',
-    '<div class="report-section"><div class="report-label">是否人工升级</div><div class="report-value ' + (r.needsEscalation?'':'') + '">' + (r.needsEscalation ? '⚠ 需要人工升级处理' : '暂不需要') + '</div></div>',
-    '<hr class="report-divider">',
-    evidenceHtml ? '<div class="report-section"><div class="report-label">工具调用证据</div>' + evidenceHtml + '</div>' : '',
-    '<hr class="report-divider">',
-    followHtml ? '<div class="report-section"><div class="report-label">后续观察指标</div><div class="report-value">' + followHtml + '</div></div>' : '',
-    '<div class="report-section"><div class="report-label">下次检查</div><div class="report-value">' + (r.nextCheckTime||'持续监控') + '</div></div>',
-    '<div class="footer-bar"><span>模型: ' + (data.modelUsed||'?') + (data.fallbackActivated?' (备用)':'') + '</span><span>总耗时: ' + totalS + 's</span></div>'
+    actionsHtml ? '<div class="report-section"><div class="report-label">Recommended Actions</div>'+actionsHtml+'</div>' : '',
+    '<div class="report-section"><div class="report-label">Rollback</div><div class="report-value" style="color:'+(r.shouldRollback?'var(--neon-red)':'var(--text-secondary)')+'">'+(r.shouldRollback?'? Recommended':'Not needed')+'</div></div>',
+    '<div class="report-section"><div class="report-label">Escalation</div><div class="report-value">'+(r.needsEscalation?'? Escalate to human':'Not needed')+'</div></div>',
+    evidenceHtml ? '<hr class="report-divider"><div class="report-section"><div class="report-label">Tool Evidence</div>'+evidenceHtml+'</div>' : '',
+    '<div class="footer-bar"><span>Model: '+(data.modelUsed||'?')+(data.fallbackActivated?' (fallback)':'')+'</span><span>'+mdBtn+' Total: '+(totalMs/1000).toFixed(1)+'s</span></div>'
   ].join('\n');
 
-  card.classList.add('visible');
+  document.getElementById('reportContainer').insertBefore(card, document.getElementById('reportContainer').firstChild);
 
-  // stagger reveal sections
-  const sections = card.querySelectorAll('.report-section');
-  sections.forEach((s, i) => {
-    s.style.opacity = '0';
-    s.style.transform = 'translateY(10px)';
-    s.style.transition = 'all 0.3s ease';
-    s.style.transitionDelay = (0.05 * i) + 's';
-    setTimeout(() => {
-      s.style.opacity = '1';
-      s.style.transform = 'translateY(0)';
-    }, 50);
-  });
-
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Add to history
+  if (currentSessionId && analysisId) {
+    addHistoryEntry(currentSessionId, r.serviceName||'?', r.riskLevel||'?');
+  }
 }
 
-// Auto-focus textarea
-document.getElementById('alarmInput').focus();
+function downloadMd(analysisId) {
+  window.open('/api/alarm/report/'+analysisId+'/markdown', '_blank');
+}
 
-// Enter key to submit (Ctrl+Enter)
-document.getElementById('alarmInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && e.ctrlKey) {
-    analyzeAlarm();
-  }
-});
+function addHistoryEntry(sessionId, service, risk) {
+  const list = document.getElementById('historyList');
+  const existing = list.querySelector('[data-sid="'+sessionId+'"]');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.className = 'history-item';
+  div.setAttribute('data-sid', sessionId);
+  div.innerHTML = '<span style="color:var(--neon-green)">?</span> '+service+' <span style="font-size:9px;opacity:0.6">'+risk+'</span>';
+  div.onclick = () => document.getElementById('alarmInput').value = '';
+  list.insertBefore(div, list.firstChild);
+}
+
+document.getElementById('alarmInput').focus();
+document.getElementById('alarmInput').addEventListener('keydown', e => { if (e.key==='Enter' && e.ctrlKey) runAnalysis(); });
 </script>
 </body>
 </html>

@@ -1,15 +1,8 @@
-server:
-  port: 8080
-
-spring:
-  profiles:
-    active: local
-
 alarm:
   models:
     primary:
       provider: deepseek
-      api-key: ${DEEPSEEK_API_KEY:}
+      api-key: test-key
       base-url: https://api.deepseek.com
       model: deepseek-chat
       temperature: 0.3
@@ -17,7 +10,7 @@ alarm:
       timeout: 30s
     fallback:
       provider: qwen
-      api-key: ${QWEN_API_KEY:}
+      api-key: test-key
       base-url: https://dashscope.aliyuncs.com/compatible-mode
       model: qwen-turbo
       temperature: 0.3
@@ -25,17 +18,3 @@ alarm:
       timeout: 30s
   pipeline:
     mode: single
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus,metrics
-  metrics:
-    export:
-      prometheus:
-        enabled: true
-
-logging:
-  level:
-    com.example.alarm: DEBUG
