@@ -109,8 +109,8 @@ public class AlarmAnalysisPipeline {
         latencies.put("rootCauseAnalysis", System.currentTimeMillis() - stepStart);
         if (rcaResult.isFallbackActivated()) fallbackActivated = true;
         finalModel = rcaResult.getModelUsed();
-        log.info("[STEP-4-RCA] id={}, model={}, latency={}ms",
-                analysisId, finalModel, latencies.get("rootCauseAnalysis"));
+        log.info("[STEP-4-RCA] id={}, model={}, latency={}ms, rcaResponse={}",
+                analysisId, finalModel, latencies.get("rootCauseAnalysis"), truncate(rcaResult.getContent(), 300));
 
         // ======== Step 5: Generate Report ========
         stepStart = System.currentTimeMillis();
@@ -142,7 +142,7 @@ public class AlarmAnalysisPipeline {
             return ParsedAlarm.failed();
         }
         ModelResult result = modelFallback.callWithFallback(systemPrompt, alarmText);
-        log.info("[STEP-1-PARSE] id={}, model={}", analysisId, result.getModelUsed());
+        log.info("[STEP-1-PARSE] id={}, model={}, rawResponse={}", analysisId, result.getModelUsed(), truncate(result.getContent(), 300));
 
         try {
             return parseJsonResult(result.getContent());
