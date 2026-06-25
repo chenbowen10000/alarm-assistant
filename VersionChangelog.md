@@ -181,3 +181,43 @@ java -jar E:\geek\alarm-assistant\target\alarm-assistant-0.0.1-SNAPSHOT.jar
 **测试框架**：JUnit 5 + Mockito + AssertJ，`@WebMvcTest` 用于 Controller 层，`@ExtendWith(MockitoExtension.class)` 用于 Service 层。
 
 ---
+
+### v1.6 — 模型配置与告警处置规则增强 (2026-06-25)
+
+**问题**：
+
+- `timeout` 只存在于配置中，未实际作用到模型 HTTP 调用。
+- 模型配置只校验 API Key，`baseUrl` 或 `model` 缺失时仍可能进入无效调用。
+- LLM 返回未知服务名时，管线仍可能继续调用工具并生成不可信报告。
+- 回滚、人工升级、后续观察指标规则需要更明确地依赖工具证据和业务风险。
+
+**修复**：
+
+| 文件 | 改动 |
+|------|------|
+| `config/ModelProperties.java` | `isValid()` 增强为同时校验 `apiKey`、`baseUrl`、`model` |
+| `pipeline/ModelFallbackHandler.java` | 每次模型调用前根据当前模型 `timeout` 设置 HTTP 连接超时和读取超时 |
+| `pipeline/ModelFallbackHandler.java` | 主模型或备用模型配置对象为空时安全跳过 |
+| `pipeline/AlarmAnalysisPipeline.java` | 新增统一解析校验：服务白名单、风险等级、告警类型、指标集合 |
+| `pipeline/AlarmAnalysisPipeline.java` | 未知服务直接返回 `PARSE_FAILED`，不再调用任何运维工具 |
+| `pipeline/AlarmAnalysisPipeline.java` | 回滚判断改为结合发布证据、异常证据和模型建议 |
+| `pipeline/AlarmAnalysisPipeline.java` | 人工升级规则覆盖 P0/P1、关键业务用户影响、规则引擎低置信度兜底 |
+| `pipeline/AlarmAnalysisPipeline.java` | 后续观察指标按告警类型生成，包括延迟、错误率、连接池、CPU/内存、下游状态 |
+| `AlarmAnalysisPipelineTest.java` | 新增未知服务短路测试 |
+| `ModelFallbackHandlerTest.java` | 新增模型调用应用 `timeout` 配置的校验 |
+
+**测试结果**：
+
+```text
+Tests run: 67, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+**效果**：
+
+- 模型超时配置从“仅声明”变为“真实生效”。
+- 无效模型配置会自动跳过，不阻断主备模型和规则兜底链路。
+- 未知服务不会继续消耗工具调用，也不会生成误导性处置报告。
+- 处置报告中的回滚、升级和观察指标更可解释，且更贴近运维处理流程。
+
+---

@@ -144,12 +144,14 @@ public class AlarmAnalysisPipeline {
         ModelResult result = modelFallback.callWithFallback(systemPrompt, alarmText);
         log.info("[STEP-1-PARSE] id={}, model={}, rawResponse={}", analysisId, result.getModelUsed(), truncate(result.getContent(), 300));
 
+        ParsedAlarm parsedAlarm;
         try {
-            return parseJsonResult(result.getContent());
+            parsedAlarm = parseJsonResult(result.getContent());
         } catch (Exception e) {
             log.warn("[STEP-1-PARSE] id={}, parse failed, trying heuristic", analysisId);
-            return heuristicParse(alarmText);
+            parsedAlarm = heuristicParse(alarmText);
         }
+        return validateParsedAlarm(parsedAlarm, analysisId);
     }
 
     private ParsedAlarm parseJsonResult(String content) throws JsonProcessingException {
@@ -168,10 +170,34 @@ public class AlarmAnalysisPipeline {
         Object metricsObj = map.get("keyMetrics");
         if (metricsObj instanceof Map) {
             @SuppressWarnings("unchecked")
-            Map<String, String> metrics = (Map<String, String>) metricsObj;
+            Map<String, Object> rawMetrics = (Map<String, Object>) metricsObj;
+            Map<String, String> metrics = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : rawMetrics.entrySet()) {
+                metrics.put(entry.getKey(), entry.getValue() == null ? "" : entry.getValue().toString());
+            }
             alarm.setKeyMetrics(metrics);
         }
 
+        return alarm;
+    }
+
+    private ParsedAlarm validateParsedAlarm(ParsedAlarm alarm, String analysisId) {
+        if (alarm == null || !alarm.isParsed()) {
+            return ParsedAlarm.failed();
+        }
+        if (!isValidService(alarm.getServiceName())) {
+            log.warn("[STEP-1-PARSE] id={}, invalid service parsed: {}", analysisId, alarm.getServiceName());
+            return ParsedAlarm.failed();
+        }
+        if (!isValidRiskLevel(alarm.getRiskLevel())) {
+            alarm.setRiskLevel("P2");
+        }
+        if (alarm.getAlarmType() == null || alarm.getAlarmType().isBlank()) {
+            alarm.setAlarmType("综合告警");
+        }
+        if (alarm.getKeyMetrics() == null) {
+            alarm.setKeyMetrics(new LinkedHashMap<>());
+        }
         return alarm;
     }
 
@@ -291,8 +317,7 @@ public class AlarmAnalysisPipeline {
         report.setSeverity(mapSeverity(riskLevel));
         report.setKeyMetrics(parsedAlarm.getKeyMetrics());
         report.setUserImpact(parsedAlarm.isUserImpact());
-        String rawImpact = extractFromRca(rcaText, "用户影响", null);
-        report.setImpactDescription(rawImpact != null && rawImpact.length() < 200 ? rawImpact : "待确认");
+        report.setImpactDescription(parseImpactDesc(rcaText, parsedAlarm));
         report.setPossibleRootCause(parseRootCause(rcaText, parsedAlarm));
         report.setConfidence(parsedAlarm.getConfidence() > 0 ? parsedAlarm.getConfidence() : 0.7);
 
@@ -300,9 +325,9 @@ public class AlarmAnalysisPipeline {
         List<String> evidence = new ArrayList<>();
         for (ToolResult r : toolResults) {
             if (r.isSuccess()) {
-                evidence.add(String.format("[%s] ✓ %s (%dms)", r.getToolName(), r.getData(), r.getLatencyMs()));
+                evidence.add(String.format("[%s] OK %s (%dms)", r.getToolName(), r.getData(), r.getLatencyMs()));
             } else {
-                evidence.add(String.format("[%s] ✗ %s", r.getToolName(), r.getErrorMessage()));
+                evidence.add(String.format("[%s] FAIL %s", r.getToolName(), r.getErrorMessage()));
             }
         }
         report.setEvidence(evidence);
@@ -310,17 +335,11 @@ public class AlarmAnalysisPipeline {
         // Recommendations
         List<String> actions = extractRecommendations(rcaText, parsedAlarm);
         report.setRecommendedActions(actions);
-        report.setShouldRollback(rcaText.contains("回滚") || rcaText.contains("rollback") ||
-                evidenceContext.contains("v2.3.1") || parsedAlarm.getAlarmType().contains("发布"));
-        report.setNeedsEscalation(riskLevel.equals("P0") || riskLevel.equals("P1") || parsedAlarm.isNeedsEscalation());
+        report.setShouldRollback(shouldRollback(parsedAlarm, rcaText, toolResults));
+        report.setNeedsEscalation(shouldEscalate(parsedAlarm, riskLevel, rcaResult));
 
         // Follow-up
-        List<String> followUp = new ArrayList<>();
-        followUp.add("接口P99延迟");
-        followUp.add("错误率趋势");
-        followUp.add("CPU/内存使用率");
-        if (report.isShouldRollback()) followUp.add("回滚后服务稳定性");
-        followUp.add(parsedAlarm.getServiceName() + "服务健康状态");
+        List<String> followUp = buildFollowUpMetrics(parsedAlarm, report.isShouldRollback());
         report.setFollowUpMetrics(followUp);
         report.setNextCheckTime("持续监控，建议每5分钟检查一次");
 
@@ -366,7 +385,9 @@ public class AlarmAnalysisPipeline {
 
     private boolean isValidService(String serviceName) {
         if (serviceName == null || serviceName.isBlank()) return false;
-        return dataStore.serviceExists(serviceName);
+        Set<String> builtInServices = Set.of("order-service", "payment-service", "inventory-service", "user-service");
+        if (builtInServices.contains(serviceName)) return true;
+        return dataStore != null && dataStore.serviceExists(serviceName);
     }
 
     private boolean hasAlarmSignal(String text) {
@@ -387,7 +408,7 @@ public class AlarmAnalysisPipeline {
     }
 
     private String parseRiskLevel(String rcaText, String fallback) {
-        if (rcaText == null) return fallback;
+        if (rcaText == null) return isValidRiskLevel(fallback) ? fallback : "P2";
         for (String line : rcaText.split("\n")) {
             if (line.contains("风险等级")) {
                 if (line.contains("P0")) return "P0";
@@ -396,7 +417,11 @@ public class AlarmAnalysisPipeline {
                 if (line.contains("P3")) return "P3";
             }
         }
-        return fallback;
+        if (rcaText.contains("P0")) return "P0";
+        if (rcaText.contains("P1")) return "P1";
+        if (rcaText.contains("P2")) return "P2";
+        if (rcaText.contains("P3")) return "P3";
+        return isValidRiskLevel(fallback) ? fallback : "P2";
     }
 
     private String parseRootCause(String rcaText, ParsedAlarm alarm) {
@@ -508,6 +533,80 @@ public class AlarmAnalysisPipeline {
         }
 
         return actions;
+    }
+
+    private boolean shouldRollback(ParsedAlarm alarm, String rcaText, List<ToolResult> toolResults) {
+        String allEvidence = joinToolData(toolResults).toLowerCase();
+        boolean recentDeploy = allEvidence.contains("v1.") || allEvidence.contains("v2.")
+                || allEvidence.contains("v3.") || allEvidence.contains("v4.")
+                || containsAny(allEvidence, "deploy", "发布", "部署", "版本");
+        boolean abnormalEvidence = containsAny(allEvidence, "timeout", "超时", "error", "exception",
+                "耗尽", "refused", "degraded", "down", "100%", "p99", "连接池");
+        String text = (rcaText == null ? "" : rcaText.toLowerCase());
+        boolean modelRecommended = containsAny(text, "rollback", "回滚");
+        boolean deployAlarm = alarm.getAlarmType() != null && containsAny(alarm.getAlarmType(), "发布", "deploy");
+        return modelRecommended || deployAlarm || (recentDeploy && abnormalEvidence);
+    }
+
+    private boolean shouldEscalate(ParsedAlarm alarm, String riskLevel, ModelResult rcaResult) {
+        if ("P0".equals(riskLevel) || "P1".equals(riskLevel) || alarm.isNeedsEscalation()) {
+            return true;
+        }
+        String service = alarm.getServiceName() == null ? "" : alarm.getServiceName();
+        boolean criticalBusinessService = service.equals("order-service") || service.equals("payment-service");
+        if (alarm.isUserImpact() && criticalBusinessService) {
+            return true;
+        }
+        return rcaResult != null && "rule-engine".equals(rcaResult.getModelUsed()) && alarm.getConfidence() < 0.5;
+    }
+
+    private List<String> buildFollowUpMetrics(ParsedAlarm alarm, boolean rollback) {
+        List<String> followUp = new ArrayList<>();
+        String alarmType = alarm.getAlarmType() == null ? "" : alarm.getAlarmType().toLowerCase();
+        followUp.add("服务健康状态");
+        if (containsAny(alarmType, "超时", "timeout", "延迟")) {
+            followUp.add("接口P99延迟");
+            followUp.add("接口超时率");
+        }
+        if (containsAny(alarmType, "错误", "error")) {
+            followUp.add("错误率趋势");
+        }
+        if (containsAny(alarmType, "cpu", "内存", "memory")) {
+            followUp.add("CPU/内存使用率");
+            followUp.add("GC频率");
+        }
+        if (containsAny(alarmType, "数据库", "database", "连接")) {
+            followUp.add("数据库连接池active/pending");
+            followUp.add("数据库连接错误数");
+        }
+        followUp.add("下游服务状态");
+        if (rollback) {
+            followUp.add("回滚后服务稳定性");
+        }
+        followUp.add(alarm.getServiceName() + "服务健康状态");
+        return followUp;
+    }
+
+    private String joinToolData(List<ToolResult> toolResults) {
+        StringBuilder sb = new StringBuilder();
+        for (ToolResult result : toolResults) {
+            sb.append(' ')
+                    .append(result.getToolName()).append(' ')
+                    .append(result.getData()).append(' ')
+                    .append(result.getErrorMessage());
+        }
+        return sb.toString();
+    }
+
+    private boolean containsAny(String text, String... keywords) {
+        if (text == null) return false;
+        String lower = text.toLowerCase();
+        for (String keyword : keywords) {
+            if (keyword != null && lower.contains(keyword.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String truncate(String text, int maxLen) {

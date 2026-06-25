@@ -1,0 +1,29 @@
+alarm:
+  models:
+    primary:
+      timeout: 15s
+    fallback:
+      timeout: 15s
+
+logging:
+  level:
+    com.example.alarm: WARN
+
+resilience4j:
+  ratelimiter:
+    instances:
+      analyzeApi:
+        limit-for-period: 10
+        limit-refresh-period: 60s
+  circuitbreaker:
+    instances:
+      deepseekModel:
+        failure-rate-threshold: 50
+      qwenModel:
+        failure-rate-threshold: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

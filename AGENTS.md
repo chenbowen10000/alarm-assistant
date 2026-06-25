@@ -28,23 +28,34 @@
 | 管线 | `pipeline/ModelFallbackHandler.java` | 模型故障转移（主→备→规则引擎） |
 | 控制器 | `controller/AlarmController.java` | `POST /api/alarm/analyze` |
 | 异常 | `exception/GlobalExceptionHandler.java` | 统一异常处理 |
-| 测试 | `*/Test.java` | 12 个 JUnit 5 测试类（66 用例，86% 覆盖率） |
+| 测试 | `*/Test.java` | 12 个 JUnit 5 测试类（67 用例，86% 覆盖率） |
 
 ## 编码约定
 - 构造器注入（不使用 `@Autowired`）
 - 异常统一由 `@RestControllerAdvice` 处理
 - 无 Lombok，手动 getter/setter
 - 工具调用异常不阻断管线，返回 `ToolResult.error()`
-- 模型调用使用 `ModelFallbackHandler.callWithFallback()`
+- 解析结果必须经过服务白名单和风险等级校验，未知服务返回 `PARSE_FAILED`，不得继续调用工具
+- 模型调用使用 `ModelFallbackHandler.callWithFallback()`，并应用每个模型配置的 `timeout`
+- 模型配置缺失 `apiKey`、`baseUrl` 或 `model` 时跳过该模型，进入备用模型或规则引擎
+- 回滚、人工升级、后续观察指标通过独立规则生成，并优先基于工具证据
 - 每步记录结构化日志：`[STEP-N] id=xxx, ...`
 
 ## 模型配置
 - 主模型: DeepSeek (`deepseek-chat`)，API Key 通过 `DEEPSEEK_API_KEY` 环境变量
 - 备用模型: 通义千问 (`qwen-turbo`)，API Key 通过 `QWEN_API_KEY` 环境变量
 - 模型配置在 `application.yml` 的 `alarm.models.primary/fallback` 下
+- `timeout` 配置实际作用于模型 HTTP 连接超时和读取超时
 
 ## 运行命令
 ```powershell
 E:\apache-maven-3.6.3\bin\mvn -f E:\geek\alarm-assistant\pom.xml clean package -DskipTests
 java -jar target/alarm-assistant-0.0.1-SNAPSHOT.jar
 ```
+
+## 当前测试基线
+```powershell
+E:\apache-maven-3.6.3\bin\mvn -f E:\geek\alarm-assistant\pom.xml test
+```
+
+当前结果：`Tests run: 67, Failures: 0, Errors: 0, Skipped: 0`。
