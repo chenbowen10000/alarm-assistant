@@ -107,6 +107,25 @@ class AlarmAnalysisPipelineTest {
         assertThat(result.getReport().getAnalysisStatus()).isEqualTo("PARSE_FAILED");
     }
 
+    @Test
+    void analyze_unknownParsedService_returnsParseFailedAndSkipsTools() {
+        String unknownServiceJson = "{\"serviceName\":\"billing-service\",\"alarmType\":\"接口超时\","
+                + "\"keyMetrics\":{\"P99延迟\":\"5200ms\"},\"riskLevel\":\"P1\",\"userImpact\":true,"
+                + "\"needsEscalation\":true,\"confidence\":0.9}";
+        when(modelFallback.callWithFallback(anyString(), contains("billing-service")))
+                .thenReturn(new ModelResult(unknownServiceJson, "deepseek-chat", false));
+
+        PipelineResult result = pipeline.analyze("billing-service接口超时，P99延迟5200ms，影响用户");
+
+        assertThat(result.getReport().getAnalysisStatus()).isEqualTo("PARSE_FAILED");
+        assertThat(result.getToolResults()).isEmpty();
+        verify(serviceStatusTool, never()).queryStatus(anyString());
+        verify(resourceMetricsTool, never()).queryMetrics(anyString());
+        verify(errorLogTool, never()).queryErrors(anyString(), anyString());
+        verify(deployRecordTool, never()).queryDeploys(anyString());
+        verify(dependencyTool, never()).queryDependencies(anyString());
+    }
+
     // ======== Test: Fallback model used ========
     @Test
     void analyze_fallbackActivated_flagSetInResult() {

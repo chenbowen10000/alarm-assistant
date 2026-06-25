@@ -49,25 +49,57 @@ java -jar E:\geek\alarm-assistant\target\alarm-assistant-0.0.1-SNAPSHOT.jar
 {
   "analysisId": "uuid",
   "report": {
+    "analysisStatus": "SUCCESS",
     "serviceName": "order-service",
     "alarmType": "接口超时",
-    "riskLevel": "P2",
+    "riskLevel": "P1",
+    "severity": "严重",
     "keyMetrics": { "超时率": "15%", "P99延迟": "5s" },
-    "possibleRootCause": "v2.3.1发版引入的性能回归...",
+    "userImpact": true,
+    "impactDescription": "影响用户下单",
+    "possibleRootCause": "近期发布后数据库连接池耗尽导致接口超时",
+    "evidence": ["[ServiceStatusTool] OK status=healthy (45ms)", "..."],
+    "confidence": 0.85,
     "recommendedActions": ["建议回滚至v2.2.1", "调大超时阈值"],
     "shouldRollback": true,
     "needsEscalation": false,
-    "evidence": ["[ServiceStatusTool] ✓ status=healthy (45ms)", ...]
+    "followUpMetrics": ["接口P99延迟", "接口超时率", "服务健康状态"],
+    "nextCheckTime": "持续监控，建议每5分钟检查一次"
   },
   "modelUsed": "deepseek-chat",
   "fallbackActivated": false,
-  "pipelineLatency": { "parse": 1200, "toolInvocation": 500, "total": 5350 }
+  "pipelineLatency": {
+    "parse": 1200,
+    "toolInvocation": 500,
+    "evidenceAggregate": 5,
+    "rootCauseAnalysis": 3000,
+    "reportGeneration": 20,
+    "total": 5350
+  },
+  "toolResults": [
+    {
+      "toolName": "ServiceStatusTool",
+      "serviceName": "order-service",
+      "success": true,
+      "data": "status=healthy",
+      "latencyMs": 45,
+      "errorMessage": null
+    }
+  ]
 }
 ```
 
 ### GET /api/alarm/services
 
 返回支持的服务列表和快捷告警示例。
+
+## 关键行为
+
+- 告警解析结果会经过服务白名单校验，仅支持 Mock 数据中的 `order-service`、`payment-service`、`inventory-service`、`user-service`。
+- 未识别到有效服务或异常指标时，返回 `analysisStatus: PARSE_FAILED`，不再调用运维工具。
+- 有效告警会固定调用服务状态、错误日志、发布记录、服务依赖、资源指标 5 个工具，报告证据来自工具结果。
+- 主模型失败时自动切换备用模型；主备模型都不可用时使用规则引擎兜底。
+- 回滚建议、人工升级、后续观察指标由独立规则生成，优先结合工具证据、风险等级和用户影响。
 
 ## 项目结构
 
@@ -124,6 +156,8 @@ alarm-assistant/
 | max-tokens | 2000 | 2000 |
 | timeout | 30s | 30s |
 
+`timeout` 会实际应用到模型 HTTP 客户端的连接超时和读取超时；如果 `api-key`、`base-url` 或 `model` 缺失，该模型会被跳过并进入备用模型或规则引擎兜底。
+
 ## 测试
 
 ```powershell
@@ -145,7 +179,10 @@ E:\apache-maven-3.6.3\bin\mvn -f E:\geek\alarm-assistant\pom.xml clean test
 | `controller` | AlarmControllerTest | 84% |
 | `config` | ModelFallbackHandlerTest | 82% |
 | `pipeline` | AlarmAnalysisPipelineTest, ModelFallbackHandlerTest | 81% |
-| **总计** | **12 个测试类 / 66 个用例** | **86%** |
+| **总计** | **12 个测试类 / 67 个用例** | **86%** |
+
+新增覆盖：未知服务解析结果会短路为 `PARSE_FAILED`，模型调用会应用 `timeout` 配置。
+
 ## 技术栈
 
 | 组件 | 版本 |

@@ -47,7 +47,9 @@ public class ModelProperties {
         public void setTimeout(String timeout) { this.timeout = timeout; }
 
         public boolean isValid() {
-            return apiKey != null && !apiKey.isBlank();
+            return apiKey != null && !apiKey.isBlank()
+                    && baseUrl != null && !baseUrl.isBlank()
+                    && model != null && !model.isBlank();
         }
     }
 }

@@ -95,6 +95,7 @@ class ModelFallbackHandlerTest {
 
         // Verify RestTemplate was called exactly once
         verify(restTemplate, times(1)).exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(JsonNode.class));
+        verify(restTemplate, times(1)).setRequestFactory(any());
     }
 
     // ======== Test: Primary fails, fallback succeeds ========

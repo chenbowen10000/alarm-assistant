@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -51,7 +52,7 @@ public class ModelFallbackHandler {
     public ModelResult callWithFallback(String systemPrompt, String userPrompt) {
         // Try primary
         ModelConfig primary = modelProperties.getPrimary();
-        if (primary.isValid()) {
+        if (primary != null && primary.isValid()) {
             try {
                 log.info("[MODEL] Trying primary model: {}", primary.getModel());
                 long start = System.currentTimeMillis();
@@ -68,7 +69,7 @@ public class ModelFallbackHandler {
 
         // Try fallback
         ModelConfig fallback = modelProperties.getFallback();
-        if (fallback.isValid()) {
+        if (fallback != null && fallback.isValid()) {
             try {
                 log.info("[MODEL] Trying fallback model: {}", fallback.getModel());
                 long start = System.currentTimeMillis();
@@ -91,6 +92,7 @@ public class ModelFallbackHandler {
 
     private String callModel(ModelConfig config, String systemPrompt, String userPrompt) {
         try {
+            applyTimeout(config);
             ObjectNode requestBody = objectMapper.createObjectNode();
             requestBody.put("model", config.getModel());
             requestBody.put("temperature", config.getTemperature());
@@ -135,6 +137,33 @@ public class ModelFallbackHandler {
             throw new RuntimeException("模型调用网络异常: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("模型调用失败: " + e.getMessage(), e);
+        }
+    }
+
+    private void applyTimeout(ModelConfig config) {
+        int timeoutMillis = parseTimeoutMillis(config.getTimeout());
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(timeoutMillis);
+        requestFactory.setReadTimeout(timeoutMillis);
+        restTemplate.setRequestFactory(requestFactory);
+    }
+
+    private int parseTimeoutMillis(String timeout) {
+        if (timeout == null || timeout.isBlank()) {
+            return 30000;
+        }
+        String normalized = timeout.trim().toLowerCase();
+        try {
+            if (normalized.endsWith("ms")) {
+                return Math.max(1, Integer.parseInt(normalized.substring(0, normalized.length() - 2)));
+            }
+            if (normalized.endsWith("s")) {
+                return Math.max(1, Integer.parseInt(normalized.substring(0, normalized.length() - 1))) * 1000;
+            }
+            return Math.max(1, (int) Duration.parse(normalized).toMillis());
+        } catch (Exception ignored) {
+            log.warn("[MODEL] Invalid timeout config '{}', using 30s", timeout);
+            return 30000;
         }
     }
 

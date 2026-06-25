@@ -1,0 +1,23 @@
+alarm:
+  models:
+    primary:
+      timeout: 20s
+    fallback:
+      timeout: 20s
+
+logging:
+  level:
+    com.example.alarm: INFO
+
+resilience4j:
+  ratelimiter:
+    instances:
+      analyzeApi:
+        limit-for-period: 20
+        limit-refresh-period: 60s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
